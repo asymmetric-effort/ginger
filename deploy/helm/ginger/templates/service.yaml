@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ginger
+  labels:
+    app.kubernetes.io/name: ginger
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: otlp-grpc
+      port: {{ .Values.service.ports.otlpGrpc }}
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: {{ .Values.service.ports.otlpHttp }}
+      targetPort: otlp-http
+      protocol: TCP
+    - name: query
+      port: {{ .Values.service.ports.query }}
+      targetPort: query
+      protocol: TCP
+    - name: admin
+      port: {{ .Values.service.ports.admin }}
+      targetPort: admin
+      protocol: TCP
+    - name: jaeger-compact
+      port: {{ .Values.service.ports.jaegerThriftCompact }}
+      targetPort: {{ .Values.service.ports.jaegerThriftCompact }}
+      protocol: UDP
+    - name: jaeger-binary
+      port: {{ .Values.service.ports.jaegerThriftBinary }}
+      targetPort: {{ .Values.service.ports.jaegerThriftBinary }}
+      protocol: UDP
+    - name: zipkin
+      port: {{ .Values.service.ports.zipkin }}
+      targetPort: {{ .Values.service.ports.zipkin }}
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: ginger
+    app.kubernetes.io/instance: {{ .Release.Name }}

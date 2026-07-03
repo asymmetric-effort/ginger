@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ginger
+  namespace: ginger
+  labels:
+    app: ginger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ginger
+  template:
+    metadata:
+      labels:
+        app: ginger
+    spec:
+      serviceAccountName: ginger
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: ginger
+          image: ghcr.io/asymmetric-effort/ginger:latest
+          args: ["--config", "/etc/ginger/config.yaml"]
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 16686
+              name: query
+            - containerPort: 13133
+              name: admin
+          securityContext:
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 13133
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 13133
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ginger
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: ginger-config

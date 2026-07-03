@@ -1,0 +1,79 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/asymmetric-effort/ginger
+  tag: ""
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  ports:
+    otlpGrpc: 4317
+    otlpHttp: 4318
+    jaegerGrpc: 14250
+    jaegerThriftHttp: 14268
+    jaegerThriftCompact: 6831
+    jaegerThriftBinary: 6832
+    zipkin: 9411
+    query: 16686
+    admin: 13133
+
+storage:
+  influxdb:
+    endpoint: http://influxdb:8086
+    org: ginger
+    bucket: traces
+    tokenSecretName: ginger-influxdb-token
+    tokenSecretKey: token
+
+tls:
+  enabled: false
+  certSecretName: ginger-tls
+  certKey: tls.crt
+  keyKey: tls.key
+  caKey: ca.crt
+
+sampling:
+  type: adaptive
+  targetSamplesPerSecond: 1.0
+
+tenancy:
+  enabled: false
+  header: X-Tenant-ID
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+networkPolicy:
+  enabled: false
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  readOnlyRootFilesystem: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

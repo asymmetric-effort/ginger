@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ginger-config
+data:
+  config.yaml: |
+    server:
+      otlp_grpc_port: {{ .Values.service.ports.otlpGrpc }}
+      otlp_http_port: {{ .Values.service.ports.otlpHttp }}
+      query_port: {{ .Values.service.ports.query }}
+      admin_port: {{ .Values.service.ports.admin }}
+    storage:
+      backend: influxdb
+      influxdb:
+        endpoint: {{ .Values.storage.influxdb.endpoint }}
+        org: {{ .Values.storage.influxdb.org }}
+        bucket: {{ .Values.storage.influxdb.bucket }}
+    sampling:
+      type: {{ .Values.sampling.type }}
+      adaptive:
+        target_samples_per_second: {{ .Values.sampling.targetSamplesPerSecond }}
+    {{- if .Values.tenancy.enabled }}
+    tenancy:
+      enabled: true
+      header: {{ .Values.tenancy.header }}
+    {{- end }}
