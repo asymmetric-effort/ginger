@@ -191,3 +191,104 @@ func TestCountSpans(t *testing.T) {
 		t.Errorf("count = %d", countSpans(td))
 	}
 }
+
+func TestGRPCReceiverDefaults(t *testing.T) {
+	sink := &mockSink{}
+	r := NewGRPCReceiver(sink, 0)
+	if r == nil {
+		t.Fatal("NewGRPCReceiver returned nil")
+	}
+	if r.SpansReceived() != 0 {
+		t.Error("initial SpansReceived should be 0")
+	}
+	if r.SpansRejected() != 0 {
+		t.Error("initial SpansRejected should be 0")
+	}
+}
+
+func TestGRPCReceiverServiceDesc(t *testing.T) {
+	sink := &mockSink{}
+	r := NewGRPCReceiver(sink, 4096)
+	desc := r.ServiceDesc()
+	if desc == nil {
+		t.Fatal("ServiceDesc returned nil")
+	}
+	if desc.ServiceName != "opentelemetry.proto.collector.trace.v1.TraceService" {
+		t.Errorf("ServiceName = %q", desc.ServiceName)
+	}
+	if len(desc.Methods) != 1 {
+		t.Fatalf("Methods count = %d", len(desc.Methods))
+	}
+	if desc.Methods[0].Name != "Export" {
+		t.Errorf("Method name = %q", desc.Methods[0].Name)
+	}
+}
+
+func TestGRPCReceiverHandleExportSuccess(t *testing.T) {
+	sink := &mockSink{}
+	r := NewGRPCReceiver(sink, 0)
+
+	td := TracesData{
+		ResourceSpans: []ResourceSpans{{
+			ScopeSpans: []ScopeSpans{{
+				Spans: []Span{{
+					TraceID: [16]byte{1}, SpanID: [8]byte{1}, Name: "test",
+					StartTimeUnixNano: 1000, EndTimeUnixNano: 2000,
+				}},
+			}},
+		}},
+	}
+	data, _ := Marshal(td)
+
+	desc := r.ServiceDesc()
+	ctx := context.Background()
+	resp, err := desc.Methods[0].UnaryHandler(ctx, data)
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	if resp == nil {
+		t.Error("response should not be nil")
+	}
+	if r.SpansReceived() != 1 {
+		t.Errorf("SpansReceived = %d", r.SpansReceived())
+	}
+}
+
+func TestGRPCReceiverHandleExportBadData(t *testing.T) {
+	sink := &mockSink{}
+	r := NewGRPCReceiver(sink, 0)
+
+	desc := r.ServiceDesc()
+	ctx := context.Background()
+	_, err := desc.Methods[0].UnaryHandler(ctx, []byte{0xff, 0xff})
+	if err == nil {
+		t.Error("expected error on bad protobuf data")
+	}
+}
+
+func TestGRPCReceiverHandleExportSinkError(t *testing.T) {
+	sink := &mockSink{err: fmt.Errorf("queue full")}
+	r := NewGRPCReceiver(sink, 0)
+
+	td := TracesData{
+		ResourceSpans: []ResourceSpans{{
+			ScopeSpans: []ScopeSpans{{
+				Spans: []Span{{
+					TraceID: [16]byte{1}, SpanID: [8]byte{1}, Name: "test",
+					StartTimeUnixNano: 1, EndTimeUnixNano: 2,
+				}},
+			}},
+		}},
+	}
+	data, _ := Marshal(td)
+
+	desc := r.ServiceDesc()
+	ctx := context.Background()
+	_, err := desc.Methods[0].UnaryHandler(ctx, data)
+	if err == nil {
+		t.Error("expected error when sink fails")
+	}
+	if r.SpansRejected() != 1 {
+		t.Errorf("SpansRejected = %d", r.SpansRejected())
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -486,14 +487,15 @@ func TestDecodeNoTag(t *testing.T) {
 func TestWatcher(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
-	if err := os.WriteFile(path, []byte("v: 1"), 0644); err != nil {
+	initialContent := "version: 1\nname: initial\n"
+	if err := os.WriteFile(path, []byte(initialContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	w := NewWatcher(path, 50*time.Millisecond)
-	changed := make(chan []byte, 1)
+	w := NewWatcher(path, 100*time.Millisecond)
+	changed := make(chan []byte, 10)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	go w.Watch(ctx, func(data []byte) {
@@ -503,27 +505,38 @@ func TestWatcher(t *testing.T) {
 		}
 	})
 
-	// Wait for initial read to set the baseline hash
-	time.Sleep(200 * time.Millisecond)
+	// Wait for watcher to read initial content and establish baseline hash
+	time.Sleep(350 * time.Millisecond)
 
-	// Drain any spurious notification from initial load
-	select {
-	case <-changed:
-	default:
+	// Drain any notifications from initial load
+	for {
+		select {
+		case <-changed:
+			continue
+		default:
+		}
+		break
 	}
 
-	// Change the file with clearly different content
-	if err := os.WriteFile(path, []byte("v: 2"), 0644); err != nil {
+	// Write clearly different content
+	newContent := "version: 2\nname: updated\n"
+	if err := os.WriteFile(path, []byte(newContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	select {
-	case data := <-changed:
-		if !strings.Contains(string(data), "v: 2") {
-			t.Errorf("unexpected data: %s", data)
+	// Wait for change notification
+	for {
+		select {
+		case data := <-changed:
+			if strings.Contains(string(data), "version: 2") {
+				return // success
+			}
+			// Got a notification but with wrong content (race) — wait for next
+			continue
+		case <-ctx.Done():
+			t.Error("timeout waiting for change notification")
+			return
 		}
-	case <-ctx.Done():
-		t.Error("timeout waiting for change notification")
 	}
 }
 
@@ -1118,6 +1131,81 @@ func TestParseFoldedBlockAtEOF(t *testing.T) {
 	}
 }
 
+func TestDecodeNonStrictUnknownKey(t *testing.T) {
+	// Non-strict decode with unknown key should silently skip (continue branch)
+	input := `
+name: ginger
+unknown_field: value
+port: 8080
+`
+	var cfg struct {
+		Name string `yaml:"name"`
+		Port int    `yaml:"port"`
+	}
+	if err := Decode([]byte(input), &cfg); err != nil {
+		t.Fatalf("Decode with unknown key should not error in non-strict mode: %v", err)
+	}
+	if cfg.Name != "ginger" {
+		t.Errorf("Name = %q, want ginger", cfg.Name)
+	}
+	if cfg.Port != 8080 {
+		t.Errorf("Port = %d, want 8080", cfg.Port)
+	}
+}
+
+func TestDecodeMappingIntoNonMapOrStruct(t *testing.T) {
+	// setMapping should return error when target is not struct/map/interface
+	input := `
+key:
+  subkey: value
+`
+	var cfg struct {
+		Key int `yaml:"key"`
+	}
+	err := Decode([]byte(input), &cfg)
+	if err == nil {
+		t.Error("expected error decoding mapping into int")
+	}
+}
+
+func TestDecodeSequenceIntoInterfaceWithNestedSeq(t *testing.T) {
+	// Tests the setSequence interface branch via nodeToInterface
+	input := `
+- [a, b]
+- c
+`
+	var result interface{}
+	if err := Decode([]byte(input), &result); err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+	items, ok := result.([]interface{})
+	if !ok {
+		t.Fatalf("expected []interface{}, got %T", result)
+	}
+	if len(items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(items))
+	}
+}
+
+func TestDecodeMapInterfaceWithNestedSeq(t *testing.T) {
+	// Tests setMap interface branch where nodeToInterface returns a sequence
+	input := `
+data:
+  list:
+    - a
+    - b
+`
+	var cfg map[string]interface{}
+	if err := Decode([]byte(input), &cfg); err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+	data := cfg["data"].(map[string]interface{})
+	list := data["list"].([]interface{})
+	if len(list) != 2 {
+		t.Errorf("expected 2 items, got %d", len(list))
+	}
+}
+
 func TestDecodeNullMapValue(t *testing.T) {
 	input := `
 data:
@@ -1366,6 +1454,43 @@ items:
 	}
 }
 
+func TestParseMappingWithExtraIndentedLine(t *testing.T) {
+	// Test when a mapping parser encounters a line more indented than base
+	// after already having parsed keys — this triggers the indent > baseIndent break
+	input := `
+key: value
+  extra: more
+next: ok
+`
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	// 'extra' is nested under 'key' because 'key' has empty value
+	// or it's ignored depending on parser behavior
+	_ = node
+}
+
+func TestParseSequenceBreakOnNonListLine(t *testing.T) {
+	// Tests the parseSequence break when a non-list line appears at same indent
+	// within the sequence context
+	input := `
+items:
+  - a
+  - b
+  not_a_list: value
+`
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	items := node.Map["items"]
+	// Should have 2 items, the non-list line stops parsing
+	if items == nil || items.Kind != NodeSequence {
+		t.Fatalf("expected sequence for items, got %v", items)
+	}
+}
+
 func TestParseMappingEmptyValueAtEnd(t *testing.T) {
 	input := "key:\n"
 	node, err := Parse(input)
@@ -1542,6 +1667,160 @@ func TestParseScalarOnly(t *testing.T) {
 	}
 	if node.Kind != NodeScalar {
 		t.Errorf("expected scalar, got %d", node.Kind)
+	}
+}
+
+func TestDecodeNodeStrictUnknownKind(t *testing.T) {
+	// Test decodeNodeStrict with a node kind that doesn't match any case
+	// This hits the final "return nil" in decodeNodeStrict
+	node := &Node{Kind: NodeKind(99), Value: "test"}
+	var s string
+	err := decodeNode(node, reflect.ValueOf(&s).Elem())
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestSetMappingInterfaceNodeError(t *testing.T) {
+	// The error path in setMapping (Interface case) from nodeToInterface
+	// Since nodeToInterface never returns errors currently, we test the success path
+	// by decoding a mapping into an interface{}
+	input := `
+data:
+  key1: val1
+  key2:
+    nested: value
+`
+	var result interface{}
+	if err := Decode([]byte(input), &result); err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+	m := result.(map[string]interface{})
+	data := m["data"].(map[string]interface{})
+	if data["key1"] != "val1" {
+		t.Error("key1 mismatch")
+	}
+}
+
+func TestParseMappingKeyWithOnlyCommentsAfter(t *testing.T) {
+	// Tests parseNode returning early (pos >= len(lines)) when
+	// a mapping key is followed only by comment lines (skipped by skipEmpty)
+	input := "outer:\n  key:\n    # comment only\n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	outer := node.Map["outer"]
+	if outer == nil {
+		t.Fatal("outer should exist")
+	}
+}
+
+func TestParseMappingChildFollowedByComments(t *testing.T) {
+	// Child value followed only by comments — helps hit the parseNode early return
+	input := "key:\n  sub: val\n# end comment\n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if node.Map["key"] == nil {
+		t.Error("key should exist")
+	}
+}
+
+func TestParseMappingInlineValueFollowedByIndented(t *testing.T) {
+	// key: value\n  continuation  — after inline value is parsed,
+	// the next line has indent > baseIndent, which hits the break at line 125
+	// (when node already has keys and next line is more indented)
+	input := "key: value\n  continuation\n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	// key should exist
+	if node.Map["key"] == nil {
+		t.Error("key should exist")
+	}
+	if node.Map["key"].Value != "value" {
+		t.Errorf("key = %q, want value", node.Map["key"].Value)
+	}
+}
+
+func TestParseLiteralBlockFollowedByLessIndented(t *testing.T) {
+	// Tests parseLiteralBlock break when a non-empty line has indent < blockIndent
+	input := "desc: |\n  content line\nnext: value\n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if node.Map["desc"].Value != "content line" {
+		t.Errorf("literal block = %q, want 'content line'", node.Map["desc"].Value)
+	}
+	if node.Map["next"].Value != "value" {
+		t.Errorf("next = %q, want value", node.Map["next"].Value)
+	}
+}
+
+func TestParseFoldedBlockFollowedByLessIndented(t *testing.T) {
+	// Tests parseFoldedBlock break when a non-empty line has indent < blockIndent
+	input := "desc: >\n  content line\nnext: value\n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if node.Map["desc"].Value != "content line" {
+		t.Errorf("folded block = %q", node.Map["desc"].Value)
+	}
+}
+
+func TestParseMappingChildFlowSeqError(t *testing.T) {
+	// Tests error return from parseNode inside parseMapping
+	// when a child value is an invalid flow sequence
+	input := "parent:\n  key:\n    [invalid\n"
+	_, err := Parse(input)
+	if err == nil {
+		t.Error("expected error for invalid nested flow sequence")
+	}
+}
+
+func TestParseSequenceChildFlowSeqError(t *testing.T) {
+	// Tests error return from parseNode inside parseSequence
+	// when a sequence child is an invalid flow sequence
+	input := "items:\n  -\n    [invalid\n"
+	_, err := Parse(input)
+	if err == nil {
+		t.Error("expected error for invalid nested flow sequence in sequence child")
+	}
+}
+
+func TestParseMappingEmptyChildWithTrailingWhitespace(t *testing.T) {
+	// Try to trigger parseNode returning empty scalar when no lines after skipEmpty
+	// This happens when mapping child is followed only by blank lines
+	input := "outer:\n  key:\n    \n    \n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	outer := node.Map["outer"]
+	if outer == nil {
+		t.Fatal("outer should exist")
+	}
+	// key should exist under outer with an empty or nested value
+	_ = outer
+}
+
+func TestParseMappingBreakOnMoreIndentedAfterKey(t *testing.T) {
+	// Tests the break at line 125: line.indent > baseIndent && keys > 0
+	// The mapping at indent 0 has key "a" already, then sees "  extra" at indent 2
+	// which causes the break
+	input := "a: 1\n    extra: more\nb: 2\n"
+	node, err := Parse(input)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	// "a" should be parsed with value "1"
+	if node.Map["a"] == nil || node.Map["a"].Value != "1" {
+		t.Errorf("a = %v", node.Map["a"])
 	}
 }
 

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -425,4 +426,243 @@ func TestServiceGetTraceNotFound(t *testing.T) {
 
 func itoa(n int64) string {
 	return strconv.FormatInt(n, 10)
+}
+
+// === Additional coverage tests ===
+
+// errorReader is a TraceReader/DependencyReader that always returns an error.
+type errorReader struct{}
+
+func (e *errorReader) GetTrace(_ context.Context, _ storage.TraceID) (otlp.TracesData, error) {
+	return otlp.TracesData{}, errors.New("reader error")
+}
+func (e *errorReader) FindTraces(_ context.Context, _ storage.TraceQueryParameters) ([]otlp.TracesData, error) {
+	return nil, errors.New("find error")
+}
+func (e *errorReader) FindTraceIDs(_ context.Context, _ storage.TraceQueryParameters) ([]storage.TraceID, error) {
+	return nil, errors.New("find ids error")
+}
+func (e *errorReader) GetServices(_ context.Context) ([]string, error) {
+	return nil, errors.New("services error")
+}
+func (e *errorReader) GetOperations(_ context.Context, _ string) ([]storage.Operation, error) {
+	return nil, errors.New("operations error")
+}
+func (e *errorReader) GetDependencies(_ context.Context, _ time.Time, _ time.Duration) ([]storage.DependencyLink, error) {
+	return nil, errors.New("deps error")
+}
+
+func TestV3GetTraceInternalError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/v3/traces/0102030405060708090a0b0c0d0e0f10", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV3FindTracesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/v3/traces?service=svc", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV3GetServicesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/v3/services", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV3GetOperationsError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/v3/operations?service=svc", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV3GetDependenciesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/v3/dependencies", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV2GetTraceInternalError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/traces/0102030405060708090a0b0c0d0e0f10", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV2FindTracesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/traces?service=svc", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV2GetServicesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/services", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV2GetOperationsError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/operations?service=svc", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestV2GetOperationsNoService(t *testing.T) {
+	svc, backend := setupTestService()
+	seedData(t, backend)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	// v2 operations doesn't require service param (unlike v3)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/operations", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestV2GetDependenciesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dependencies", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestParseTagsSingle(t *testing.T) {
+	// Single entry (no pipe separator)
+	tags := parseTags("key:value")
+	if tags["key"] != "value" {
+		t.Errorf("single tag: got %v", tags)
+	}
+}
+
+func TestV2GetDependenciesWithParams(t *testing.T) {
+	svc, _ := setupTestService()
+	h := NewHTTPHandler(svc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	now := time.Now().UnixMilli()
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/dependencies?endTs="+itoa(now)+"&lookback=3600000", nil)
+	mux.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d", w.Code)
+	}
+}
+
+// Test FindTraces with adjuster (service.go coverage)
+type adjusterThatWarns struct{}
+
+func (adjusterThatWarns) Adjust(td otlp.TracesData) (otlp.TracesData, []Warning) {
+	return td, []Warning{{Message: "warning from adjuster"}}
+}
+
+func TestServiceFindTracesWithAdjuster(t *testing.T) {
+	backend := memory.NewBackend(100)
+	chain := NewAdjusterChain(adjusterThatWarns{})
+	svc := NewService(backend, backend, chain)
+
+	ctx := context.Background()
+	resAttrs := otlp.NewAttributes()
+	resAttrs.Set("service.name", otlp.StringValue("adj-svc"))
+	backend.WriteSpans(ctx, otlp.TracesData{
+		ResourceSpans: []otlp.ResourceSpans{{
+			Resource: otlp.Resource{Attributes: resAttrs},
+			ScopeSpans: []otlp.ScopeSpans{{
+				Spans: []otlp.Span{{
+					TraceID: [16]byte{1}, SpanID: [8]byte{1},
+					Name: "op", StartTimeUnixNano: 1000, EndTimeUnixNano: 2000,
+				}},
+			}},
+		}},
+	})
+
+	results, err := svc.FindTraces(ctx, storage.TraceQueryParameters{ServiceName: "adj-svc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
 }
