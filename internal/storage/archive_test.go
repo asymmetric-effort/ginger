@@ -2,22 +2,24 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/asymmetric-effort/ginger/internal/protocol/otlp"
 )
 
 type mockBackend struct {
-	reader *mockReader
-	writer *mockWriter
+	reader   *mockReader
+	writer   *mockWriter
+	closeErr error
 }
 
-func (b *mockBackend) TraceReader() TraceReader        { return b.reader }
-func (b *mockBackend) TraceWriter() TraceWriter        { return b.writer }
+func (b *mockBackend) TraceReader() TraceReader           { return b.reader }
+func (b *mockBackend) TraceWriter() TraceWriter           { return b.writer }
 func (b *mockBackend) DependencyReader() DependencyReader { return nil }
 func (b *mockBackend) DependencyWriter() DependencyWriter { return nil }
-func (b *mockBackend) SamplingStore() SamplingStore    { return nil }
-func (b *mockBackend) Close() error                    { return nil }
+func (b *mockBackend) SamplingStore() SamplingStore       { return nil }
+func (b *mockBackend) Close() error                       { return b.closeErr }
 
 type mockReader struct {
 	traces map[TraceID]otlp.TracesData
@@ -120,5 +122,31 @@ func TestHasArchive(t *testing.T) {
 	a2 := NewArchiveStorage(nil, nil, &mockBackend{})
 	if !a2.HasArchive() {
 		t.Error("should have archive")
+	}
+}
+
+func TestRegistryCloseWithError(t *testing.T) {
+	r := NewRegistry()
+	closeErr := errors.New("close failed")
+	r.Register("bad", &mockBackend{closeErr: closeErr})
+
+	err := r.Close()
+	if err == nil {
+		t.Error("expected error from Close with failing backend")
+	}
+	if err != closeErr {
+		t.Errorf("expected %v, got %v", closeErr, err)
+	}
+}
+
+func TestRegistryCloseWithErrorAndSuccess(t *testing.T) {
+	r := NewRegistry()
+	closeErr := errors.New("backend error")
+	r.Register("bad", &mockBackend{closeErr: closeErr})
+	r.Register("good", &mockBackend{closeErr: nil})
+
+	err := r.Close()
+	if err == nil {
+		t.Error("expected error; at least one backend fails")
 	}
 }

@@ -76,3 +76,65 @@ func TestAdaptiveEngineNoObservations(t *testing.T) {
 		t.Error("should have no probabilities without observations")
 	}
 }
+
+func TestAdaptiveEngineZeroInterval(t *testing.T) {
+	ae := NewAdaptiveEngine(10)
+	for i := 0; i < 10; i++ {
+		ae.RecordSpan("svc")
+	}
+	// Zero duration should default to 1 second to avoid divide by zero
+	ae.Compute(0)
+	p := ae.GetProbability("svc")
+	if p <= 0 || p > 1 {
+		t.Errorf("probability should be in (0,1] after zero interval, got %f", p)
+	}
+}
+
+func TestAdaptiveEngineNegativeInterval(t *testing.T) {
+	ae := NewAdaptiveEngine(10)
+	for i := 0; i < 10; i++ {
+		ae.RecordSpan("svc")
+	}
+	// Negative duration should also default to 1 second
+	ae.Compute(-time.Second)
+	p := ae.GetProbability("svc")
+	if p <= 0 || p > 1 {
+		t.Errorf("probability should be in (0,1] after negative interval, got %f", p)
+	}
+}
+
+func TestAdaptiveEngineZeroObservedRate(t *testing.T) {
+	ae := NewAdaptiveEngine(10)
+	// Record a span so the window entry exists
+	ae.RecordSpan("svc")
+	// First compute drains the count to 0
+	ae.Compute(time.Second)
+	// Second compute has zero observed rate — should hit the continue branch
+	ae.Compute(time.Second)
+	// Should still have the probability from first compute
+	p := ae.GetProbability("svc")
+	if p <= 0 || p > 1 {
+		t.Errorf("probability out of range: %f", p)
+	}
+}
+
+func TestAdaptiveEngineExistingProbability(t *testing.T) {
+	ae := NewAdaptiveEngine(10)
+
+	// First compute creates the probability for "svc"
+	for i := 0; i < 50; i++ {
+		ae.RecordSpan("svc")
+	}
+	ae.Compute(time.Second)
+
+	// Second compute should use existing probability (ok = true branch)
+	for i := 0; i < 50; i++ {
+		ae.RecordSpan("svc")
+	}
+	ae.Compute(time.Second)
+
+	p := ae.GetProbability("svc")
+	if p <= 0 || p > 1 {
+		t.Errorf("probability out of range: %f", p)
+	}
+}

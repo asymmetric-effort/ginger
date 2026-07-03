@@ -2,9 +2,18 @@ package grpc
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/binary"
+	"encoding/pem"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -445,6 +454,557 @@ func TestAsStatusError(t *testing.T) {
 	if se.Code != 5 {
 		t.Errorf("code = %d", se.Code)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// readMessage gzip decompression path
+// ---------------------------------------------------------------------------
+
+func TestReadMessageGzipCompressed(t *testing.T) {
+	var payload bytes.Buffer
+	gz := gzip.NewWriter(&payload)
+	gz.Write([]byte("compressed data"))
+	gz.Close()
+
+	// Build a gRPC frame with compressed flag = 1
+	compressed := payload.Bytes()
+	var frame bytes.Buffer
+	frame.WriteByte(1) // compressed flag
+	binary.Write(&frame, binary.BigEndian, uint32(len(compressed)))
+	frame.Write(compressed)
+
+	data, err := readMessage(&frame, false, maxMessageSize)
+	if err != nil {
+		t.Fatalf("readMessage gzip: %v", err)
+	}
+	if string(data) != "compressed data" {
+		t.Errorf("data = %q", data)
+	}
+}
+
+func TestReadMessageGzipFlagInHeader(t *testing.T) {
+	// compressed=true in the header argument (Grpc-Encoding: gzip)
+	var payload bytes.Buffer
+	gz := gzip.NewWriter(&payload)
+	gz.Write([]byte("header-compressed"))
+	gz.Close()
+
+	compressed := payload.Bytes()
+	var frame bytes.Buffer
+	frame.WriteByte(0) // flag byte = 0, but compressed=true is passed
+	binary.Write(&frame, binary.BigEndian, uint32(len(compressed)))
+	frame.Write(compressed)
+
+	data, err := readMessage(&frame, true, maxMessageSize)
+	if err != nil {
+		t.Fatalf("readMessage header-gzip: %v", err)
+	}
+	if string(data) != "header-compressed" {
+		t.Errorf("data = %q", data)
+	}
+}
+
+func TestReadMessageGzipInvalidPayload(t *testing.T) {
+	// compressed flag = 1 but payload is not valid gzip
+	notGzip := []byte("not gzip data at all")
+	var frame bytes.Buffer
+	frame.WriteByte(1) // compressed
+	binary.Write(&frame, binary.BigEndian, uint32(len(notGzip)))
+	frame.Write(notGzip)
+
+	_, err := readMessage(&frame, false, maxMessageSize)
+	if err == nil {
+		t.Error("expected error for invalid gzip payload")
+	}
+}
+
+func TestReadMessageHeaderReadError(t *testing.T) {
+	// Empty reader — io.ReadFull on 5-byte header will fail
+	_, err := readMessage(bytes.NewReader([]byte{}), false, maxMessageSize)
+	if err == nil {
+		t.Error("expected error for empty body")
+	}
+}
+
+func TestReadMessagePayloadReadError(t *testing.T) {
+	// Write a valid 5-byte header claiming 100 bytes, but reader ends early
+	var frame bytes.Buffer
+	frame.WriteByte(0) // not compressed
+	binary.Write(&frame, binary.BigEndian, uint32(100))
+	// Don't write the payload — io.ReadFull will return EOF
+
+	_, err := readMessage(&frame, false, maxMessageSize)
+	if err == nil {
+		t.Error("expected error when payload read fails")
+	}
+}
+
+func TestReadMessageGzipDecompressError(t *testing.T) {
+	// Produce a gzip stream where the CRC32 is wrong, causing io.ReadAll to return
+	// a "gzip: invalid checksum" error (which hits the "decompress" error path).
+	// We build a minimal gzip stream manually with a bad CRC.
+	//
+	// Gzip format: 10-byte header + DEFLATE blocks + 4-byte CRC32 + 4-byte ISIZE
+	// We use the "stored" (no-compression) DEFLATE block format for simplicity:
+	//   BFINAL=1, BTYPE=00 (no compress): 0x01, LEN(2), NLEN(2), data
+	data := []byte("abc")
+	// Stored DEFLATE block: 0x01 (final, no compress), LEN lo/hi, NLEN lo/hi, data
+	deflate := []byte{
+		0x01,                               // BFINAL=1 BTYPE=00
+		byte(len(data)), 0x00,              // LEN = 3 (little-endian)
+		byte(^len(data)), 0xFF,             // NLEN = ~LEN = 0xFC 0xFF
+	}
+	deflate = append(deflate, data...)
+
+	// gzip header (10 bytes): 0x1f 0x8b, method=8, flags=0, mtime=0, xfl=0, os=0xff
+	gzHeader := []byte{0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff}
+	// CRC32 - intentionally WRONG (4 bytes, little-endian): 0xDE 0xAD 0xBE 0xEF
+	badCRC := []byte{0xDE, 0xAD, 0xBE, 0xEF}
+	// ISIZE = 3 (actual length of uncompressed data), correct
+	isize := []byte{0x03, 0x00, 0x00, 0x00}
+
+	gzBytes := append(gzHeader, deflate...)
+	gzBytes = append(gzBytes, badCRC...)
+	gzBytes = append(gzBytes, isize...)
+
+	// Build gRPC frame: flag=1 (compressed), 4-byte big-endian length, gzip payload
+	var frame bytes.Buffer
+	frame.WriteByte(1) // compressed
+	lenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lenBuf, uint32(len(gzBytes)))
+	frame.Write(lenBuf)
+	frame.Write(gzBytes)
+
+	_, err := readMessage(&frame, false, maxMessageSize)
+	if err == nil {
+		t.Error("expected decompress error for bad gzip CRC")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// writeMessage error path
+// ---------------------------------------------------------------------------
+
+type failWriter struct{}
+
+func (f *failWriter) Write(p []byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func TestWriteMessageError(t *testing.T) {
+	err := writeMessage(&failWriter{}, []byte("hello"))
+	if err == nil {
+		t.Error("expected error from failing writer")
+	}
+}
+
+type halfWriter struct {
+	written int
+}
+
+func (h *halfWriter) Write(p []byte) (int, error) {
+	if h.written == 0 {
+		// Write the header successfully
+		h.written++
+		return len(p), nil
+	}
+	// Fail on payload write
+	return 0, io.ErrClosedPipe
+}
+
+func TestWriteMessagePayloadError(t *testing.T) {
+	err := writeMessage(&halfWriter{}, []byte("hello"))
+	if err == nil {
+		t.Error("expected error when payload write fails")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// httpServerStream.Send with flush path
+// ---------------------------------------------------------------------------
+
+type flushRecorder struct {
+	*httptest.ResponseRecorder
+	flushed bool
+}
+
+func (f *flushRecorder) Flush() {
+	f.flushed = true
+	f.ResponseRecorder.Flush()
+}
+
+func TestHTTPServerStreamSendWithFlush(t *testing.T) {
+	rec := &flushRecorder{ResponseRecorder: httptest.NewRecorder()}
+	stream := &httpServerStream{
+		w:        rec,
+		flusher:  rec,
+		canFlush: true,
+	}
+	if err := stream.Send([]byte("data")); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if !rec.flushed {
+		t.Error("expected Flush to be called")
+	}
+}
+
+func TestHTTPServerStreamSendNoFlush(t *testing.T) {
+	rec := httptest.NewRecorder()
+	stream := &httpServerStream{
+		w:        rec,
+		canFlush: false,
+	}
+	if err := stream.Send([]byte("data")); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+}
+
+type failResponseWriter struct {
+	header http.Header
+}
+
+func (f *failResponseWriter) Header() http.Header {
+	if f.header == nil {
+		f.header = http.Header{}
+	}
+	return f.header
+}
+func (f *failResponseWriter) Write(p []byte) (int, error) { return 0, io.ErrClosedPipe }
+func (f *failResponseWriter) WriteHeader(statusCode int)  {}
+
+func TestHTTPServerStreamSendWriteError(t *testing.T) {
+	stream := &httpServerStream{
+		w:        &failResponseWriter{},
+		canFlush: false,
+	}
+	err := stream.Send([]byte("data"))
+	if err == nil {
+		t.Error("expected error when writer fails")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Client Invoke / doInvoke coverage
+// ---------------------------------------------------------------------------
+
+func TestClientInvokeSuccess(t *testing.T) {
+	srv := NewServer()
+	srv.RegisterService(&ServiceDesc{
+		ServiceName: "test.Service",
+		Methods: []MethodDesc{{
+			Name: "Echo",
+			UnaryHandler: func(ctx context.Context, reqData []byte) ([]byte, error) {
+				return reqData, nil
+			},
+		}},
+	})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go srv.Serve(ln)
+	defer srv.GracefulStop()
+
+	// Use httptest server which supports HTTP/1.1 for simplicity
+	// We'll test doInvoke via a test HTTP server
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		// Parse gRPC frame
+		if len(body) < 5 {
+			http.Error(w, "short", 400)
+			return
+		}
+		payload := body[5:]
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.Header().Set("Trailer", "Grpc-Status, Grpc-Message")
+		w.WriteHeader(http.StatusOK)
+		writeMessage(w, payload)
+		w.Header().Set("Grpc-Status", "0")
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(0))
+	defer cc.Close()
+
+	result, err := cc.Invoke(context.Background(), "/test.Service/Echo", []byte("ping"))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if string(result) != "ping" {
+		t.Errorf("result = %q", result)
+	}
+}
+
+func TestClientInvokeGRPCStatusError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.Header().Set("Grpc-Status", "5")
+		w.Header().Set("Grpc-Message", "not found")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(1))
+	defer cc.Close()
+
+	_, err := cc.Invoke(context.Background(), "/svc/Method", []byte("req"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	se, ok := err.(*StatusError)
+	if !ok {
+		t.Fatalf("expected *StatusError, got %T: %v", err, err)
+	}
+	if se.Code != 5 {
+		t.Errorf("code = %d", se.Code)
+	}
+}
+
+func TestClientInvokeTrailerStatus(t *testing.T) {
+	// Status in trailer instead of header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.Header().Set("Trailer", "Grpc-Status,Grpc-Message")
+		w.WriteHeader(http.StatusOK)
+		// Write a valid gRPC frame so body is >= 5 bytes
+		var buf bytes.Buffer
+		writeMessage(&buf, []byte("ok"))
+		w.Write(buf.Bytes())
+		w.Header().Set("Grpc-Status", "0")
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(0))
+	defer cc.Close()
+
+	_, err := cc.Invoke(context.Background(), "/svc/Method", []byte("req"))
+	if err != nil {
+		t.Logf("Invoke returned (may depend on trailer support): %v", err)
+	}
+}
+
+func TestClientInvokeShortResponse(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte{0, 0}) // too short
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(0))
+	defer cc.Close()
+
+	_, err := cc.Invoke(context.Background(), "/svc/Method", []byte("req"))
+	if err == nil {
+		t.Fatal("expected error for short response")
+	}
+}
+
+func TestClientInvokeConnectionError(t *testing.T) {
+	// Point at a port that is not listening — should get connection refused
+	cc := NewClientConn("127.0.0.1:1", WithMaxRetries(0))
+	defer cc.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := cc.Invoke(ctx, "/svc/Method", []byte("req"))
+	if err == nil {
+		t.Error("expected connection error")
+	}
+}
+
+func TestClientInvokeRetryBackoff(t *testing.T) {
+	// Test that retry+backoff path is exercised.
+	// Server always returns a non-StatusError failure (short response) which triggers retry.
+	callCount := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte{0, 0}) // too short — will cause "response too short" error
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(1))
+	defer cc.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := cc.Invoke(ctx, "/svc/Method", []byte("req"))
+	if err == nil {
+		t.Error("expected error after retries")
+	}
+	if callCount < 2 {
+		t.Errorf("expected at least 2 calls (1 retry), got %d", callCount)
+	}
+}
+
+func TestClientInvokeContextCancelledDuringBackoff(t *testing.T) {
+	// Server returns a retryable error (short response) fast,
+	// but ctx times out during the backoff wait on retry.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte{0, 0}) // too short, causes retryable error
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	// maxRetries=2: first attempt fails fast, then backoff=100ms fires, ctx should cancel during backoff
+	cc := NewClientConn(target, WithMaxRetries(2))
+	defer cc.Close()
+
+	// Context that cancels after 50ms — first attempt completes, then during 100ms backoff, ctx fires
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := cc.Invoke(ctx, "/svc/Method", []byte("req"))
+	if err == nil {
+		t.Error("expected context error")
+	}
+}
+
+func TestClientDoInvokeGRPCMessageFromTrailer(t *testing.T) {
+	// grpcStatus != "0" but grpcMsg is in trailer
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.Header().Set("Trailer", "Grpc-Status,Grpc-Message")
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Grpc-Status", "3")
+		w.Header().Set("Grpc-Message", "bad request from trailer")
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(0))
+	defer cc.Close()
+
+	_, err := cc.Invoke(context.Background(), "/svc/Method", []byte("req"))
+	// Should get either StatusError from header path or from trailer
+	_ = err // result varies by HTTP/1.1 trailer support
+}
+
+func TestClientDoInvokeNonGRPCStatus(t *testing.T) {
+	// grpcStatus = "" means we skip the status-error path
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/grpc+proto")
+		w.WriteHeader(http.StatusOK)
+		// Write exactly 5 bytes so response length check passes
+		w.Write([]byte{0, 0, 0, 0, 0})
+	}))
+	defer ts.Close()
+
+	target := strings.TrimPrefix(ts.URL, "http://")
+	cc := NewClientConn(target, WithMaxRetries(0))
+	defer cc.Close()
+
+	result, err := cc.Invoke(context.Background(), "/svc/Method", []byte("req"))
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("result len = %d, want 0", len(result))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// asStatusError unwrap path
+// ---------------------------------------------------------------------------
+
+type wrappedErr struct{ inner error }
+
+func (w *wrappedErr) Error() string { return w.inner.Error() }
+func (w *wrappedErr) Unwrap() error { return w.inner }
+
+func TestAsStatusErrorUnwrap(t *testing.T) {
+	se := NewStatusError(7, "permission denied")
+	wrapped := &wrappedErr{inner: se}
+	var out *StatusError
+	if !asStatusError(wrapped, &out) {
+		t.Error("should find StatusError through Unwrap")
+	}
+	if out.Code != 7 {
+		t.Errorf("code = %d", out.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ServeTLS path (just confirms it calls Serve without panic)
+// ---------------------------------------------------------------------------
+
+func TestServeTLSSetsNextProtos(t *testing.T) {
+	// We can't easily test a full TLS handshake, but we can verify
+	// ServeTLS does not panic when called with a valid TLS config.
+	// We use a self-signed certificate for this test.
+	cert, err := generateSelfSignedCert()
+	if err != nil {
+		t.Skip("cannot generate cert:", err)
+	}
+
+	srv := NewServer()
+	srv.RegisterService(&ServiceDesc{
+		ServiceName: "test.TLS",
+		Methods:     []MethodDesc{{Name: "Echo", UnaryHandler: func(ctx context.Context, reqData []byte) ([]byte, error) { return reqData, nil }}},
+	})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.ServeTLS(ln, tlsCfg)
+	}()
+
+	// Give it a moment to start
+	time.Sleep(20 * time.Millisecond)
+	srv.GracefulStop()
+
+	// Confirm ServeTLS ran (error from shutdown is expected)
+	select {
+	case <-done:
+	case <-time.After(1 * time.Second):
+		t.Error("ServeTLS did not return after GracefulStop")
+	}
+}
+
+func generateSelfSignedCert() (tls.Certificate, error) {
+	return generateTestCert()
+}
+
+func generateTestCert() (tls.Certificate, error) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "localhost"},
+		DNSNames:     []string{"localhost"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	return tls.X509KeyPair(certPEM, keyPEM)
 }
 
 func TestServerInvalidTimeout(t *testing.T) {

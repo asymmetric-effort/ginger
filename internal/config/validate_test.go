@@ -97,3 +97,11 @@ func TestValidationErrorString(t *testing.T) {
 		t.Errorf("String() = %q", s)
 	}
 }
+
+func TestValidateBytesInvalidYAML(t *testing.T) {
+	// Invalid YAML that triggers a parse error in ValidateBytes
+	_, err := ValidateBytes([]byte("key: {unclosed"), false)
+	if err == nil {
+		t.Error("expected error for invalid YAML")
+	}
+}

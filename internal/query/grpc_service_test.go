@@ -157,3 +157,97 @@ func TestGRPCHandlerGetOperations(t *testing.T) {
 		t.Error("should return operations")
 	}
 }
+
+func TestGRPCHandlerGetTraceInvalidRequest(t *testing.T) {
+	backend := memory.NewBackend(100)
+	svc := NewService(backend, backend, nil)
+	h := NewGRPCHandler(svc)
+	desc := h.ServiceDesc()
+
+	// Send truncated/invalid protobuf to trigger ReadField error
+	_, err := desc.Methods[0].UnaryHandler(context.Background(), []byte{0xff, 0xff})
+	if err == nil {
+		t.Error("should error for invalid protobuf request")
+	}
+}
+
+func TestGRPCHandlerGetTraceUnknownField(t *testing.T) {
+	backend := memory.NewBackend(100)
+	svc := NewService(backend, backend, nil)
+	h := NewGRPCHandler(svc)
+	desc := h.ServiceDesc()
+
+	// Encode field number 2 (unknown to GetTrace) to trigger SkipField path
+	enc := protobuf.NewEncoder()
+	enc.WriteTagString(2, "unknown")
+	reqData := make([]byte, enc.Len())
+	copy(reqData, enc.Bytes())
+	enc.Release()
+
+	// This should fail because no trace_id provided (field 1)
+	_, err := desc.Methods[0].UnaryHandler(context.Background(), reqData)
+	if err == nil {
+		t.Error("should error: trace_id required")
+	}
+}
+
+func TestGRPCHandlerGetServicesError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewGRPCHandler(svc)
+	desc := h.ServiceDesc()
+
+	_, err := desc.Methods[1].UnaryHandler(context.Background(), []byte{})
+	if err == nil {
+		t.Error("should error when GetServices fails")
+	}
+}
+
+func TestGRPCHandlerGetOperationsError(t *testing.T) {
+	svc := NewService(&errorReader{}, &errorReader{}, nil)
+	h := NewGRPCHandler(svc)
+	desc := h.ServiceDesc()
+
+	enc := protobuf.NewEncoder()
+	enc.WriteTagString(1, "svc")
+	reqData := make([]byte, enc.Len())
+	copy(reqData, enc.Bytes())
+	enc.Release()
+
+	_, err := desc.Methods[2].UnaryHandler(context.Background(), reqData)
+	if err == nil {
+		t.Error("should error when GetOperations fails")
+	}
+}
+
+func TestGRPCHandlerGetOperationsInvalidRequest(t *testing.T) {
+	backend := memory.NewBackend(100)
+	svc := NewService(backend, backend, nil)
+	h := NewGRPCHandler(svc)
+	desc := h.ServiceDesc()
+
+	// Send truncated/invalid protobuf to trigger ReadField error in GetOperations
+	_, err := desc.Methods[2].UnaryHandler(context.Background(), []byte{0xff, 0xff})
+	if err == nil {
+		t.Error("should error for invalid protobuf request in GetOperations")
+	}
+}
+
+func TestGRPCHandlerGetOperationsUnknownField(t *testing.T) {
+	backend := memory.NewBackend(100)
+	svc := NewService(backend, backend, nil)
+	h := NewGRPCHandler(svc)
+	desc := h.ServiceDesc()
+
+	// Encode field number 2 (unknown to GetOperations) to trigger SkipField path
+	enc := protobuf.NewEncoder()
+	enc.WriteTagString(2, "unknown")
+	reqData := make([]byte, enc.Len())
+	copy(reqData, enc.Bytes())
+	enc.Release()
+
+	// This should succeed with empty result (no service filter = all ops)
+	_, err := desc.Methods[2].UnaryHandler(context.Background(), reqData)
+	if err != nil {
+		t.Errorf("should succeed with unknown field (ops for all services): %v", err)
+	}
+}

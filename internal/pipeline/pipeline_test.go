@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -207,6 +208,96 @@ func TestPipelineDefaultConfig(t *testing.T) {
 	if p.config.DrainTimeout != 5*time.Second {
 		t.Errorf("default drain timeout = %v", p.config.DrainTimeout)
 	}
+}
+
+func TestPipelineStartReceiverError(t *testing.T) {
+	// Test Start returning error when a receiver fails to start
+	errRecv := &errReceiver{startErr: fmt.Errorf("receiver start failed")}
+	p := New(Config{QueueSize: 10})
+	p.AddReceiver(errRecv)
+
+	err := p.Start(context.Background())
+	if err == nil {
+		t.Error("expected error when receiver fails to start")
+	}
+	// Clean up the goroutine
+	p.Shutdown(context.Background())
+}
+
+func TestPipelineShutdownReceiverError(t *testing.T) {
+	// Test Shutdown returning error when a receiver fails to shut down
+	errRecv := &errReceiver{shutdownErr: fmt.Errorf("receiver shutdown failed")}
+	p := New(Config{QueueSize: 10})
+	p.AddReceiver(errRecv)
+
+	ctx := context.Background()
+	p.Start(ctx)
+	err := p.Shutdown(ctx)
+	if err == nil {
+		t.Error("expected error when receiver fails to shut down")
+	}
+}
+
+func TestPipelineShutdownExporterError(t *testing.T) {
+	// Test Shutdown returning error when an exporter fails to shut down
+	errExp := &errExporter{shutdownErr: fmt.Errorf("exporter shutdown failed")}
+	p := New(Config{QueueSize: 10})
+	p.AddExporter(errExp)
+
+	ctx := context.Background()
+	p.Start(ctx)
+	err := p.Shutdown(ctx)
+	if err == nil {
+		t.Error("expected error when exporter fails to shut down")
+	}
+}
+
+func TestPipelineDrainOnContextCancel(t *testing.T) {
+	// Test that drain() is called when context is cancelled while items are in queue
+	exp := &mockExporter{}
+	p := New(Config{QueueSize: 100})
+	p.AddExporter(exp)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	p.Start(ctx)
+
+	// Enqueue items
+	for i := 0; i < 5; i++ {
+		p.ConsumeTraces(ctx, makeTestTD())
+	}
+
+	// Cancel context — triggers consumeLoop to call drain()
+	cancel()
+	// Allow time for drain to complete
+	time.Sleep(50 * time.Millisecond)
+	p.Shutdown(context.Background())
+}
+
+// errReceiver is a receiver that returns errors on Start/Shutdown.
+type errReceiver struct {
+	startErr    error
+	shutdownErr error
+}
+
+func (r *errReceiver) Start(_ context.Context, _ TracesConsumer) error {
+	return r.startErr
+}
+
+func (r *errReceiver) Shutdown(_ context.Context) error {
+	return r.shutdownErr
+}
+
+// errExporter is an exporter that returns error on Shutdown.
+type errExporter struct {
+	shutdownErr error
+}
+
+func (e *errExporter) ExportTraces(_ context.Context, _ otlp.TracesData) error {
+	return nil
+}
+
+func (e *errExporter) Shutdown(_ context.Context) error {
+	return e.shutdownErr
 }
 
 func TestPipelineDrain(t *testing.T) {

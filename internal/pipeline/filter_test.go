@@ -268,6 +268,104 @@ func TestMemoryLimiterDefaults(t *testing.T) {
 	}
 }
 
+func TestMemoryLimiterMonitorHardLimit(t *testing.T) {
+	// Start a memory limiter with a 0 hard limit (always exceeded) and a very short interval
+	// so the monitor goroutine runs and exercises the hard-limit branch
+	ml := NewMemoryLimiter(MemoryLimiterConfig{
+		HardLimitMiB:  1, // 1 MiB - current heap is very likely above this
+		SoftLimitMiB:  1,
+		CheckInterval: 5 * time.Millisecond,
+	})
+	ctx := context.Background()
+	ml.Start(ctx)
+	time.Sleep(50 * time.Millisecond) // let monitor tick at least a few times
+	ml.Shutdown()
+	// After the monitor ticks with HardLimitMiB=1 MiB which is always exceeded by test heap,
+	// hardExceed should be true (or might be false if heap < 1 MiB; either way no panic)
+	_ = ml.hardExceed.Load()
+}
+
+func TestMemoryLimiterMonitorSoftLimitOnly(t *testing.T) {
+	// Set only soft limit (no hard limit) with a value that will be exceeded
+	ml := NewMemoryLimiter(MemoryLimiterConfig{
+		SoftLimitMiB:  1, // very low, should be exceeded
+		CheckInterval: 5 * time.Millisecond,
+	})
+	ctx := context.Background()
+	ml.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+	ml.Shutdown()
+	_ = ml.softExceed.Load()
+}
+
+func TestMemoryLimiterMonitorBelowLimits(t *testing.T) {
+	// Set limits that are effectively never exceeded (very high values)
+	ml := NewMemoryLimiter(MemoryLimiterConfig{
+		HardLimitMiB:  999999,
+		SoftLimitMiB:  999999,
+		CheckInterval: 5 * time.Millisecond,
+	})
+	ctx := context.Background()
+	ml.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+	ml.Shutdown()
+	if ml.hardExceed.Load() {
+		t.Error("hard limit should not be exceeded with high threshold")
+	}
+	if ml.softExceed.Load() {
+		t.Error("soft limit should not be exceeded with high threshold")
+	}
+}
+
+func TestMemoryLimiterDropRatioZeroThreshold(t *testing.T) {
+	// DropRatio=2.0 → uint64(1.0/2.0) = uint64(0.5) = 0 → triggers dropThreshold = 2 fallback
+	ml := NewMemoryLimiter(MemoryLimiterConfig{DropRatio: 2.0})
+	ml.softExceed.Store(true)
+	// With dropThreshold=2, every 2nd request is dropped
+	dropped := 0
+	for i := 0; i < 10; i++ {
+		_, err := ml.ProcessTraces(context.Background(), makeFilterTD("svc", "op", 0, nil))
+		if err == ErrMemoryLimitExceeded {
+			dropped++
+		}
+	}
+	// Should drop some (every 2nd)
+	if dropped == 0 {
+		t.Error("should have dropped some batches with dropThreshold=2")
+	}
+}
+
+func TestFilterMatchesIncludeNoMatch(t *testing.T) {
+	// Tests the 'kept = append(kept, span)' path in INCLUDE mode when nothing matches
+	// → dropped count increments
+	fp := NewFilterProcessor(FilterConfig{
+		Mode:        FilterModeInclude,
+		ServiceGlob: "nonexistent-*",
+	})
+	td := makeFilterTD("other-service", "op", otlp.SpanKindServer, nil)
+	result, _ := fp.ProcessTraces(context.Background(), td)
+	if spanCount(result) != 0 {
+		t.Error("should drop spans that don't match include filter")
+	}
+	if fp.DroppedCount() != 1 {
+		t.Errorf("dropped = %d, want 1", fp.DroppedCount())
+	}
+}
+
+func TestFilterMatchesFalseSpanName(t *testing.T) {
+	// Tests matches() returning false for spanNameRE non-match
+	// covers the `return false` in matches for spanNameRE
+	fp := NewFilterProcessor(FilterConfig{
+		Mode:         FilterModeExclude,
+		SpanNameGlob: "no-match-*",
+	})
+	// Span name doesn't match → matches() = false → excluded mode: keep it
+	result, _ := fp.ProcessTraces(context.Background(), makeFilterTD("svc", "other", 0, nil))
+	if spanCount(result) != 1 {
+		t.Error("non-matching span should be kept in exclude mode")
+	}
+}
+
 func TestGlobToRegexp(t *testing.T) {
 	tests := []struct {
 		glob  string

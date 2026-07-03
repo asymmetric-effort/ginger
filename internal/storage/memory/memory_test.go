@@ -408,3 +408,98 @@ func TestFindTracesDefaultLimit(t *testing.T) {
 		t.Errorf("default limit: got %d, want 20", len(results))
 	}
 }
+
+func TestMatchesTagValueNonString(t *testing.T) {
+	b := NewBackend(100)
+	ctx := context.Background()
+
+	// Create a span with a non-string attribute (int)
+	tid := [16]byte{42}
+	resAttrs := otlp.NewAttributes()
+	resAttrs.Set("service.name", otlp.StringValue("svc"))
+	spanAttrs := otlp.NewAttributes()
+	spanAttrs.Set("http.status_code", otlp.IntValue(200))
+
+	td := otlp.TracesData{
+		ResourceSpans: []otlp.ResourceSpans{{
+			Resource: otlp.Resource{Attributes: resAttrs},
+			ScopeSpans: []otlp.ScopeSpans{{
+				Spans: []otlp.Span{{
+					TraceID:           tid,
+					SpanID:            [8]byte{1},
+					Name:              "op",
+					StartTimeUnixNano: 1000,
+					EndTimeUnixNano:   2000,
+					Attributes:        spanAttrs,
+				}},
+			}},
+		}},
+	}
+	b.WriteSpans(ctx, td)
+
+	// Query with the int value as string — matches via JSON marshal path
+	results, err := b.FindTraces(ctx, storage.TraceQueryParameters{
+		Tags: map[string]string{"http.status_code": "200"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result for non-string tag match, got %d", len(results))
+	}
+
+	// Query with wrong value — should not match
+	results, _ = b.FindTraces(ctx, storage.TraceQueryParameters{
+		Tags: map[string]string{"http.status_code": "999"},
+	})
+	if len(results) != 0 {
+		t.Error("expected no results for wrong non-string tag value")
+	}
+}
+
+func TestEvictOldestEmpty(t *testing.T) {
+	b := NewBackend(100)
+	// evictOldest on an empty backend should not panic
+	b.evictOldest()
+}
+
+func TestMergeSpanEmptyResourceSpans(t *testing.T) {
+	// Test mergeSpan when td.ResourceSpans is empty (first branch)
+	var td otlp.TracesData
+	res := otlp.Resource{}
+	scope := otlp.InstrumentationScope{}
+	span := otlp.Span{SpanID: [8]byte{1}, Name: "merged"}
+
+	mergeSpan(&td, res, scope, span)
+
+	if len(td.ResourceSpans) != 1 {
+		t.Fatalf("expected 1 ResourceSpans, got %d", len(td.ResourceSpans))
+	}
+	if len(td.ResourceSpans[0].ScopeSpans) != 1 {
+		t.Fatalf("expected 1 ScopeSpans, got %d", len(td.ResourceSpans[0].ScopeSpans))
+	}
+	if len(td.ResourceSpans[0].ScopeSpans[0].Spans) != 1 {
+		t.Errorf("expected 1 span, got %d", len(td.ResourceSpans[0].ScopeSpans[0].Spans))
+	}
+}
+
+func TestMergeSpanEmptyScopeSpans(t *testing.T) {
+	// Test mergeSpan when ResourceSpans exists but ScopeSpans is empty
+	td := otlp.TracesData{
+		ResourceSpans: []otlp.ResourceSpans{{
+			Resource: otlp.Resource{},
+		}},
+	}
+	res := otlp.Resource{}
+	scope := otlp.InstrumentationScope{Name: "test"}
+	span := otlp.Span{SpanID: [8]byte{2}, Name: "merged2"}
+
+	mergeSpan(&td, res, scope, span)
+
+	if len(td.ResourceSpans[0].ScopeSpans) != 1 {
+		t.Fatalf("expected 1 ScopeSpans after merge, got %d", len(td.ResourceSpans[0].ScopeSpans))
+	}
+	if len(td.ResourceSpans[0].ScopeSpans[0].Spans) != 1 {
+		t.Errorf("expected 1 span, got %d", len(td.ResourceSpans[0].ScopeSpans[0].Spans))
+	}
+}

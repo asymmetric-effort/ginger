@@ -2,6 +2,7 @@ package sampling
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -163,5 +164,26 @@ func TestHandlerMissingService(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status = %d", w.Code)
+	}
+}
+
+// errorProvider always returns an error from GetSamplingStrategy.
+type errorProvider struct{}
+
+func (e *errorProvider) GetSamplingStrategy(_ string) (*Strategy, error) {
+	return nil, errProviderFailed
+}
+
+var errProviderFailed = fmt.Errorf("provider failure")
+
+func TestHandlerProviderError(t *testing.T) {
+	h := NewHandler(&errorProvider{})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/sampling?service=svc", nil)
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
 	}
 }
