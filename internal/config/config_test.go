@@ -503,8 +503,14 @@ func TestWatcher(t *testing.T) {
 		}
 	})
 
-	// Wait for initial read and first poll cycle
-	time.Sleep(150 * time.Millisecond)
+	// Wait for initial read to set the baseline hash
+	time.Sleep(200 * time.Millisecond)
+
+	// Drain any spurious notification from initial load
+	select {
+	case <-changed:
+	default:
+	}
 
 	// Change the file with clearly different content
 	if err := os.WriteFile(path, []byte("v: 2"), 0644); err != nil {
