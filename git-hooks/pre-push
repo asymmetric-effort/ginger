@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> pre-push: running tests..."
+go test -race -coverprofile=/tmp/ginger-coverage.txt -covermode=atomic ./... 2>&1 || {
+    echo "ERROR: tests failed"
+    exit 1
+}
+
+echo "==> pre-push: checking coverage threshold..."
+COVERAGE=$(go tool cover -func=/tmp/ginger-coverage.txt | grep total | awk '{print substr($3, 1, length($3)-1)}')
+echo "Total coverage: ${COVERAGE}%"
+
+THRESHOLD=98
+if [ "$(echo "${COVERAGE} < ${THRESHOLD}" | bc -l 2>/dev/null || echo 1)" -eq 1 ]; then
+    # Fallback if bc is not available
+    COV_INT=$(echo "${COVERAGE}" | cut -d. -f1)
+    if [ "${COV_INT}" -lt "${THRESHOLD}" ]; then
+        echo "ERROR: coverage ${COVERAGE}% is below the ${THRESHOLD}% threshold"
+        exit 1
+    fi
+fi
+
+rm -f /tmp/ginger-coverage.txt
+echo "==> pre-push: all checks passed"

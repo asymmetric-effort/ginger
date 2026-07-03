@@ -1,0 +1,64 @@
+# Binaries
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go
+*.test
+*.out
+coverage.txt
+coverage.html
+/vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# TypeScript / Node
+node_modules/
+*.js.map
+*.d.ts
+!src/**/*.d.ts
+.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+credentials.json
+
+# Build artifacts
+/dist/
+/out/
+/target/
+
+# Docker
+docker-compose.override.yml
+
+# Test artifacts
+/test-results/
+/e2e-results/

@@ -1,0 +1,34 @@
+run:
+  timeout: 5m
+
+linters:
+  enable-all: true
+  disable:
+    - depguard
+    - exhaustruct
+    - ireturn
+    - varnamelen
+    - wrapcheck
+
+linters-settings:
+  govet:
+    enable-all: true
+  gocyclo:
+    min-complexity: 10
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 120
+  funlen:
+    lines: 60
+    statements: 40
+  cyclop:
+    max-complexity: 10
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: false

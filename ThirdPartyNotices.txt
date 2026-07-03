@@ -1,0 +1,12 @@
+Third-Party Notices for Ginger
+==============================
+
+This file contains notices for third-party software used in this project.
+
+Ginger strives to minimize third-party dependencies. Any dependencies listed
+below have been explicitly approved and vetted for security, maintenance status,
+and license compatibility.
+
+------------------------------------------------------------------------
+
+(No third-party dependencies at this time.)

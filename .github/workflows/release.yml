@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          go-version-file: go.mod
+
+      - name: Build binaries
+        run: |
+          for GOOS in linux darwin; do
+            for GOARCH in amd64 arm64; do
+              output="bin/ginger-${GOOS}-${GOARCH}"
+              CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} \
+                go build -ldflags="-s -w" -o "${output}" ./cmd/ginger
+            done
+          done
+
+      - name: Create release
+        uses: asymmetric-effort/actions/actions/gh-release@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          files: bin/ginger-*

@@ -1,0 +1,188 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint and Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Go
+        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          go-version-file: go.mod
+
+      - name: Install Go tooling
+        uses: asymmetric-effort/actions/actions/go-tooling@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        run: golangci-lint run --timeout 5m
+
+      - name: Check formatting
+        run: |
+          gofmt -l . | tee /tmp/gofmt.out
+          test ! -s /tmp/gofmt.out
+
+  test:
+    name: Test
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Go
+        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          go-version-file: go.mod
+
+      - name: Run unit tests
+        run: |
+          go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Enforce coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.txt | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${COVERAGE}%"
+          if [ "$(echo "${COVERAGE} < 98.0" | bc -l)" -eq 1 ]; then
+            echo "ERROR: Coverage ${COVERAGE}% is below the 98% threshold"
+            exit 1
+          fi
+
+      - name: Upload coverage
+        uses: asymmetric-effort/actions/actions/upload-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          name: coverage
+          path: coverage.txt
+
+  build:
+    name: Build
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Go
+        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o bin/ginger ./cmd/ginger
+
+      - name: Verify binary exists
+        run: |
+          test -f bin/ginger
+          file bin/ginger
+          bin/ginger version
+
+      - name: Upload build artifact
+        uses: asymmetric-effort/actions/actions/upload-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          name: ginger-linux-amd64
+          path: bin/ginger
+
+  e2e:
+    name: E2E Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Go
+        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          go-version-file: go.mod
+
+      - name: Download build artifact
+        uses: asymmetric-effort/actions/actions/download-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          name: ginger-linux-amd64
+          path: bin/
+
+      - name: Run E2E tests
+        run: |
+          chmod +x bin/ginger
+          go test -tags=e2e -race -timeout 10m ./tests/e2e/...
+
+  lint-python:
+    name: Lint Python SDK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Python
+        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install ruff mypy
+
+      - name: Lint
+        working-directory: sdk/python
+        run: ruff check .
+
+      - name: Format check
+        working-directory: sdk/python
+        run: ruff format --check .
+
+      - name: Type check
+        working-directory: sdk/python
+        run: mypy --strict ginger/
+
+  lint-typescript:
+    name: Lint TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Node
+        uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: sdk/typescript
+        run: npm ci
+
+      - name: Lint
+        working-directory: sdk/typescript
+        run: npm run lint
+
+      - name: Type check
+        working-directory: sdk/typescript
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: sdk/typescript
+        run: npm run test:coverage
+
+  supply-chain:
+    name: Supply Chain Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Audit supply chain
+        uses: asymmetric-effort/actions/actions/audit-supply-chain@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
