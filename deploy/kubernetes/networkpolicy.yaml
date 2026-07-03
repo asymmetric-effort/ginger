@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ginger
+  namespace: ginger
+spec:
+  podSelector:
+    matchLabels:
+      app: ginger
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 4317
+          protocol: TCP
+        - port: 4318
+          protocol: TCP
+        - port: 16686
+          protocol: TCP
+        - port: 13133
+          protocol: TCP
+        - port: 6831
+          protocol: UDP
+        - port: 6832
+          protocol: UDP
+        - port: 9411
+          protocol: TCP
+  egress:
+    - ports:
+        - port: 8086
+          protocol: TCP
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

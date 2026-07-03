@@ -1,0 +1,9 @@
+apiVersion: v2
+name: ginger
+description: OpenTelemetry tracing toolkit for Kubernetes with post-quantum cryptography
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+maintainers:
+  - name: Asymmetric Effort
+    url: https://github.com/asymmetric-effort
