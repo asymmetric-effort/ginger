@@ -60,11 +60,11 @@ func (q *BoundedQueue[T]) EnqueueWait(ctx context.Context, item T) error {
 }
 
 // Dequeue removes and returns an item from the queue without blocking.
-// Returns false if the queue is empty.
+// Returns false if the queue is empty or closed.
 func (q *BoundedQueue[T]) Dequeue() (T, bool) {
 	select {
-	case item := <-q.ch:
-		return item, true
+	case item, ok := <-q.ch:
+		return item, ok
 	default:
 		var zero T
 		return zero, false
