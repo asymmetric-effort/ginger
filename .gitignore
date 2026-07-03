@@ -62,3 +62,6 @@ docker-compose.override.yml
 # Test artifacts
 /test-results/
 /e2e-results/
+
+# Claude skills (installed via skills installer)
+.claude/skills/
