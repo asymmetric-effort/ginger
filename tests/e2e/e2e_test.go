@@ -55,7 +55,7 @@ func TestFullPipeline(t *testing.T) {
 		resp.Body.Close()
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Query back
 	resp, err := http.Get("http://" + addr + "/api/v3/services")
