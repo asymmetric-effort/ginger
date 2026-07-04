@@ -147,7 +147,7 @@ func encodeThriftBatchWithSkipFields() []byte {
 	enc.WriteI64(500)
 	// Unknown fields — exercise skip for each supported type
 	enc.WriteFieldBegin(thrift.TypeByte, 20)
-	enc.WriteByte(0x42)
+	enc.WriteI8(0x42)
 	enc.WriteFieldBegin(thrift.TypeI16, 21)
 	enc.WriteI16(1234)
 	enc.WriteFieldBegin(thrift.TypeI32, 22)
@@ -277,7 +277,7 @@ func TestSkipThriftFieldAllTypes(t *testing.T) {
 	// TypeBool
 	enc.WriteBool(true)
 	// TypeByte
-	enc.WriteByte(42)
+	enc.WriteI8(42)
 	// TypeI16
 	enc.WriteI16(1000)
 	// TypeI32

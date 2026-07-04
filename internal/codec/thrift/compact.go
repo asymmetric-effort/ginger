@@ -33,7 +33,7 @@ func (e *CompactEncoder) WriteBool(v bool) {
 }
 
 // WriteByte writes a single byte.
-func (e *CompactEncoder) WriteByte(v byte) {
+func (e *CompactEncoder) WriteI8(v byte) {
 	e.buf = append(e.buf, v)
 }
 
