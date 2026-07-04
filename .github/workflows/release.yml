@@ -130,7 +130,7 @@ jobs:
       id-token: write
     environment:
       name: pypi
-      url: https://pypi.org/project/ginger-tracing/
+      url: https://pypi.org/project/ginger/
     steps:
       - name: Checkout
         uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1

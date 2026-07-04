@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ginger-tracing"
+name = "ginger"
 version = "0.0.2"
 description = "Ginger Python SDK — zero-dependency OpenTelemetry tracing client with OTLP HTTP export"
 readme = "README.md"
