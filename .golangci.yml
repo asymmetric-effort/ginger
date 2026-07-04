@@ -45,6 +45,22 @@ linters:
     - copyloopvar
     - recvcheck
     - gosmopolitan
+    - canonicalheader
+    - dogsled
+    - dupword
+    - embeddedstructfieldcheck
+    - godot
+    - gomoddirectives
+    - interfacebloat
+    - predeclared
+    - reassign
+    - testifylint
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - revive
 
 linters-settings:
   govet:
