@@ -7,10 +7,11 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   release:
-    name: Release
+    name: Release Binaries
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -37,3 +38,81 @@ jobs:
         uses: asymmetric-effort/actions/actions/gh-release@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           files: bin/ginger-*
+
+  release-docker:
+    name: Release Docker Image
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push Docker image
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/asymmetric-effort/ginger" \
+            --label "org.opencontainers.image.version=${{ steps.version.outputs.tag }}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t ghcr.io/asymmetric-effort/ginger:${{ steps.version.outputs.tag }} \
+            -t ghcr.io/asymmetric-effort/ginger:latest \
+            .
+          docker push ghcr.io/asymmetric-effort/ginger:${{ steps.version.outputs.tag }}
+          docker push ghcr.io/asymmetric-effort/ginger:latest
+
+  release-helm:
+    name: Release Helm Chart
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Install Helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
+
+      - name: Lint chart
+        run: helm lint deploy/helm/ginger
+
+      - name: Package chart
+        run: helm package deploy/helm/ginger --destination /tmp/helm-packages
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push chart to OCI registry
+        run: helm push /tmp/helm-packages/ginger-*.tgz oci://ghcr.io/asymmetric-effort/charts
+
+  release-npm:
+    name: Release npm Package
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Node
+        uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22.15.0"
+
+      - name: Install dependencies
+        working-directory: sdk/typescript
+        run: npm install --ignore-scripts
+
+      - name: Build
+        working-directory: sdk/typescript
+        run: npx tsc
+
+      - name: Configure npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > sdk/typescript/.npmrc
+
+      - name: Publish to npm
+        working-directory: sdk/typescript
+        run: npm publish --access public

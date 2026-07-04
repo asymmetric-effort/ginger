@@ -1,21 +1,51 @@
 {
   "name": "@asymmetric-effort/ginger",
   "version": "0.0.1",
-  "description": "Ginger TypeScript SDK - zero-dependency OpenTelemetry tracing client",
+  "description": "Ginger TypeScript SDK — zero-dependency OpenTelemetry tracing client with OTLP HTTP export",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/unit/test_exporter.js",
     "test:coverage": "node --test --experimental-test-coverage tests/unit/",
-    "lint": "tsc --noEmit --strict"
+    "lint": "tsc --noEmit --strict",
+    "prepublishOnly": "tsc"
   },
+  "keywords": [
+    "opentelemetry",
+    "tracing",
+    "observability",
+    "otlp",
+    "ginger",
+    "kubernetes"
+  ],
+  "author": "Asymmetric Effort, LLC",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/asymmetric-effort/ginger.git",
+    "directory": "sdk/typescript"
+  },
+  "homepage": "https://github.com/asymmetric-effort/ginger",
+  "bugs": {
+    "url": "https://github.com/asymmetric-effort/ginger/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
     "typescript": "~5.8.0"
   }
