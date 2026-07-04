@@ -25,6 +25,11 @@ jobs:
       - name: Install Go tooling
         uses: asymmetric-effort/actions/actions/go-tooling@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
 
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Run go vet
         run: go vet ./...
 
