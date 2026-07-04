@@ -24,8 +24,6 @@ type BatchProcessor struct {
 	res     otlp.Resource
 	scope   otlp.InstrumentationScope
 	timer   *time.Timer
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
 }
 
 // NewBatchProcessor creates a batch processor that forwards to the given exporter.

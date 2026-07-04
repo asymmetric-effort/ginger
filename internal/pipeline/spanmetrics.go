@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/asymmetric-effort/ginger/internal/metrics"
@@ -11,7 +10,6 @@ import (
 
 // SpanmetricsConnector generates RED metrics from span data flowing through the pipeline.
 type SpanmetricsConnector struct {
-	mu       sync.Mutex
 	calls    *metrics.Counter
 	errors   *metrics.Counter
 	duration *metrics.Histogram

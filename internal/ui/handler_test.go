@@ -78,7 +78,7 @@ func TestNewHandlerSuccess(t *testing.T) {
 		t.Fatalf("NewHandler failed: %v", err)
 	}
 	if h == nil {
-		t.Error("handler should not be nil")
+		t.Fatal("handler should not be nil")
 	}
 	if h.fileServer == nil {
 		t.Error("fileServer should not be nil")

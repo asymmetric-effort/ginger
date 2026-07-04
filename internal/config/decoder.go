@@ -35,7 +35,7 @@ func decodeNode(node *Node, v reflect.Value) error {
 
 func decodeNodeStrict(node *Node, v reflect.Value, strict bool) error {
 	// Dereference pointer
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			v.Set(reflect.New(v.Type().Elem()))
 		}

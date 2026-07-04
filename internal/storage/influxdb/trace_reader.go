@@ -74,13 +74,13 @@ func (tr *TraceReader) GetOperations(ctx context.Context, service string) ([]sto
 // BuildFindTracesQuery builds a Flux query for FindTraces.
 func BuildFindTracesQuery(bucket string, query storage.TraceQueryParameters) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf(`from(bucket: "%s")`, bucket))
+	fmt.Fprintf(&b, `from(bucket: "%s")`, bucket)
 
 	// Time range
 	if !query.StartTimeMin.IsZero() {
-		b.WriteString(fmt.Sprintf(`  |> range(start: %s`, query.StartTimeMin.UTC().Format(time.RFC3339)))
+		fmt.Fprintf(&b, `  |> range(start: %s`, query.StartTimeMin.UTC().Format(time.RFC3339))
 		if !query.StartTimeMax.IsZero() {
-			b.WriteString(fmt.Sprintf(`, stop: %s`, query.StartTimeMax.UTC().Format(time.RFC3339)))
+			fmt.Fprintf(&b, `, stop: %s`, query.StartTimeMax.UTC().Format(time.RFC3339))
 		}
 		b.WriteString(")")
 	} else {
@@ -90,17 +90,17 @@ func BuildFindTracesQuery(bucket string, query storage.TraceQueryParameters) str
 	b.WriteString(`  |> filter(fn: (r) => r._measurement == "traces")`)
 
 	if query.ServiceName != "" {
-		b.WriteString(fmt.Sprintf(`  |> filter(fn: (r) => r.service == "%s")`, escapeFlux(query.ServiceName)))
+		fmt.Fprintf(&b, `  |> filter(fn: (r) => r.service == "%s")`, escapeFlux(query.ServiceName))
 	}
 	if query.OperationName != "" {
-		b.WriteString(fmt.Sprintf(`  |> filter(fn: (r) => r.operation == "%s")`, escapeFlux(query.OperationName)))
+		fmt.Fprintf(&b, `  |> filter(fn: (r) => r.operation == "%s")`, escapeFlux(query.OperationName))
 	}
 
 	limit := query.NumTraces
 	if limit <= 0 {
 		limit = 20
 	}
-	b.WriteString(fmt.Sprintf(`  |> limit(n: %d)`, limit))
+	fmt.Fprintf(&b, `  |> limit(n: %d)`, limit)
 
 	return b.String()
 }

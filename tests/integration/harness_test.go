@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -115,7 +116,7 @@ func TestHarnessMultipleTraces(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	traces, err := h.QuerySvc.FindTraces(nil, storage.TraceQueryParameters{NumTraces: 10})
+	traces, err := h.QuerySvc.FindTraces(context.Background(), storage.TraceQueryParameters{NumTraces: 10})
 	if err != nil {
 		t.Fatal(err)
 	}

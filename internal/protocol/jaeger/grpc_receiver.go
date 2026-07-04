@@ -137,7 +137,7 @@ func unmarshalProtobufSpan(dec *protobuf.Decoder) (Span, error) {
 			}
 			copy(span.SpanID[:], b)
 		case 3: // operation_name
-			span.OperationName, err = dec.ReadString()
+			span.OperationName, _ = dec.ReadString()
 		case 5: // start_time (google.protobuf.Timestamp)
 			sub, err := dec.ReadMessage()
 			if err != nil {

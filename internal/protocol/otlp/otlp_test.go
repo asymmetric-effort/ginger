@@ -625,19 +625,6 @@ func TestBytesValueCopy(t *testing.T) {
 	}
 }
 
-// unknownVarintField encodes a varint field with a high field number (99) for injection into messages.
-// Wire type 0 (varint), field 99: tag = 99<<3 | 0 = 792 = 0xF8 0x06
-var unknownVarintTag = []byte{0xF8, 0x06, 42}
-
-// unknownBytesTag encodes a length-delimited field with field number 98.
-// Wire type 2, field 98: tag = 98<<3 | 2 = 786 = 0xD2 0x06
-var unknownBytesTag = []byte{0xD2, 0x06, 0x00} // zero-length bytes
-
-// appendUnknown appends unknownVarintTag to a byte slice.
-func appendUnknown(b []byte) []byte {
-	return append(b, unknownVarintTag...)
-}
-
 // TestUnmarshalUnknownFieldsInSubMessages tests that unknown fields inside nested
 // messages are silently skipped by all unmarshal* functions.
 func TestUnmarshalUnknownFieldsInSubMessages(t *testing.T) {
@@ -858,14 +845,6 @@ func encodeFixed64Tag(tag byte, v uint64) []byte {
 		byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24),
 		byte(v >> 32), byte(v >> 40), byte(v >> 48), byte(v >> 56),
 	}
-}
-
-// buildInvalidWireTypeTag creates a tag with an invalid wire type (3) for a given field number.
-// This will cause SkipField to return ErrInvalidWireType.
-func buildInvalidWireTypeTag(fieldNum uint32) []byte {
-	tag := uint64(fieldNum)<<3 | 3 // wire type 3 is invalid
-	result := appendVarint(nil, tag)
-	return result
 }
 
 // TestUnmarshalSkipFieldErrors tests that SkipField errors propagate correctly
