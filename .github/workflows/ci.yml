@@ -328,6 +328,38 @@ jobs:
         working-directory: sdk/typescript
         run: npm publish --access public --provenance
 
+  package-pypi:
+    name: Package PyPI
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ginger-tracing/
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Python
+        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build package
+        working-directory: sdk/python
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b54027a2e0a02dac41541fa2
+        with:
+          packages-dir: sdk/python/dist/
+
   lint-python:
     name: Lint Python SDK
     runs-on: ubuntu-latest
