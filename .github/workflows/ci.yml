@@ -125,9 +125,13 @@ jobs:
           name: ginger-linux-amd64
           path: bin/
 
+      - name: Build binary for E2E
+        run: |
+          CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
+          chmod +x bin/ginger
+
       - name: Run E2E tests
         run: |
-          chmod +x bin/ginger
           go test -tags=e2e -race -timeout 10m ./tests/e2e/...
 
   lint-python:
