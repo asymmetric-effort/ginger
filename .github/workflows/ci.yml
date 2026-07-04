@@ -349,17 +349,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install build "twine>=6.1.0" "packaging>=24.2" id
+        run: pip install build "twine>=6.1.0" "packaging>=24.2"
 
       - name: Build package
         working-directory: sdk/python
         run: python -m build
 
-      - name: Mint OIDC token and publish to PyPI
-        working-directory: sdk/python
-        run: |
-          OIDC_TOKEN=$(python -m id pypi)
-          twine upload --non-interactive -u __token__ -p "$OIDC_TOKEN" dist/*
+      - name: Publish to PyPI via OIDC
+        run: python scripts/pypi-oidc-publish.py
 
   lint-python:
     name: Lint Python SDK
