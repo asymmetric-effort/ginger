@@ -47,11 +47,11 @@ func TestNewTraceStateTooManyEntries(t *testing.T) {
 
 func TestParseTraceState(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		wantLen  int
-		wantErr  bool
-		wantStr  string
+		name    string
+		input   string
+		wantLen int
+		wantErr bool
+		wantStr string
 	}{
 		{"empty", "", 0, false, ""},
 		{"single", "vendor=value", 1, false, "vendor=value"},

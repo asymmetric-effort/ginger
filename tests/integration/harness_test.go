@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ func makeTestTD(traceID [16]byte, service, operation string) otlp.TracesData {
 			ScopeSpans: []otlp.ScopeSpans{{
 				Spans: []otlp.Span{{
 					TraceID: traceID, SpanID: [8]byte{1}, Name: operation,
-					Kind: otlp.SpanKindServer,
+					Kind:              otlp.SpanKindServer,
 					StartTimeUnixNano: uint64(time.Now().UnixNano()),
 					EndTimeUnixNano:   uint64(time.Now().Add(100 * time.Millisecond).UnixNano()),
 				}},
@@ -115,7 +116,7 @@ func TestHarnessMultipleTraces(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	traces, err := h.QuerySvc.FindTraces(nil, storage.TraceQueryParameters{NumTraces: 10})
+	traces, err := h.QuerySvc.FindTraces(context.Background(), storage.TraceQueryParameters{NumTraces: 10})
 	if err != nil {
 		t.Fatal(err)
 	}

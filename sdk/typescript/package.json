@@ -15,5 +15,8 @@
     "test:coverage": "node --test --experimental-test-coverage tests/unit/",
     "lint": "tsc --noEmit --strict"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "~5.8.0"
+  }
 }

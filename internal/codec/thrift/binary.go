@@ -36,8 +36,8 @@ func (e *BinaryEncoder) WriteBool(v bool) {
 	}
 }
 
-// WriteByte writes a single byte.
-func (e *BinaryEncoder) WriteByte(v byte) {
+// WriteI8 writes a single byte.
+func (e *BinaryEncoder) WriteI8(v byte) {
 	e.buf = append(e.buf, v)
 }
 
@@ -79,25 +79,25 @@ func (e *BinaryEncoder) WriteBytes(v []byte) {
 
 // WriteFieldBegin writes a field header.
 func (e *BinaryEncoder) WriteFieldBegin(fieldType TType, fieldID int16) {
-	e.WriteByte(byte(fieldType))
+	e.WriteI8(byte(fieldType))
 	e.WriteI16(fieldID)
 }
 
 // WriteFieldStop writes the field stop marker.
 func (e *BinaryEncoder) WriteFieldStop() {
-	e.WriteByte(byte(TypeStop))
+	e.WriteI8(byte(TypeStop))
 }
 
 // WriteListBegin writes a list header.
 func (e *BinaryEncoder) WriteListBegin(elemType TType, size int32) {
-	e.WriteByte(byte(elemType))
+	e.WriteI8(byte(elemType))
 	e.WriteI32(size)
 }
 
 // WriteMapBegin writes a map header.
 func (e *BinaryEncoder) WriteMapBegin(keyType, valueType TType, size int32) {
-	e.WriteByte(byte(keyType))
-	e.WriteByte(byte(valueType))
+	e.WriteI8(byte(keyType))
+	e.WriteI8(byte(valueType))
 	e.WriteI32(size)
 }
 

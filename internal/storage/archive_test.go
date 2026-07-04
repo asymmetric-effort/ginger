@@ -39,7 +39,7 @@ func (r *mockReader) FindTraces(_ context.Context, _ TraceQueryParameters) ([]ot
 func (r *mockReader) FindTraceIDs(_ context.Context, _ TraceQueryParameters) ([]TraceID, error) {
 	return nil, nil
 }
-func (r *mockReader) GetServices(_ context.Context) ([]string, error)                      { return nil, nil }
+func (r *mockReader) GetServices(_ context.Context) ([]string, error)                { return nil, nil }
 func (r *mockReader) GetOperations(_ context.Context, _ string) ([]Operation, error) { return nil, nil }
 
 type mockWriter struct {

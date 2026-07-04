@@ -34,9 +34,9 @@ type FilterConfig struct {
 
 // FilterProcessor drops or keeps spans based on filter predicates.
 type FilterProcessor struct {
-	config      FilterConfig
-	serviceRE   *regexp.Regexp
-	spanNameRE  *regexp.Regexp
+	config       FilterConfig
+	serviceRE    *regexp.Regexp
+	spanNameRE   *regexp.Regexp
 	droppedCount atomic.Int64
 }
 

@@ -8,7 +8,7 @@ import (
 
 // SelfTracer records internal operation metrics for ginger's own observability.
 type SelfTracer struct {
-	enabled     atomic.Bool
+	enabled       atomic.Bool
 	storageWrites atomic.Int64
 	storageErrors atomic.Int64
 	queryCount    atomic.Int64

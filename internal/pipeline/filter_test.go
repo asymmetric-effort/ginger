@@ -207,7 +207,7 @@ func TestAttributesProcessorDelete(t *testing.T) {
 
 func TestMemoryLimiterHardLimit(t *testing.T) {
 	ml := NewMemoryLimiter(MemoryLimiterConfig{HardLimitMiB: 1}) // 1 MiB — will be exceeded
-	ml.hardExceed.Store(true) // simulate exceeded
+	ml.hardExceed.Store(true)                                    // simulate exceeded
 
 	td := makeFilterTD("svc", "op", 0, nil)
 	_, err := ml.ProcessTraces(context.Background(), td)

@@ -37,8 +37,8 @@ func NewTLSConfig(mode TLSMode) *tls.Config {
 		MinVersion: tls.VersionTLS13,
 		CurvePreferences: []tls.CurveID{
 			tls.X25519MLKEM768, // Hybrid PQC: X25519 + ML-KEM-768
-			tls.X25519,        // Fallback
-			tls.CurveP256,     // Fallback
+			tls.X25519,         // Fallback
+			tls.CurveP256,      // Fallback
 		},
 	}
 

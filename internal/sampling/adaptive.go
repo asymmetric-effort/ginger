@@ -9,9 +9,9 @@ import (
 
 // AdaptiveEngine tracks per-service throughput and computes probabilities.
 type AdaptiveEngine struct {
-	mu          sync.RWMutex
-	target      float64
-	window      map[string]*throughputWindow
+	mu            sync.RWMutex
+	target        float64
+	window        map[string]*throughputWindow
 	probabilities map[string]float64
 }
 

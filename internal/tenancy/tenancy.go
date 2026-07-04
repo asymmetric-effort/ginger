@@ -49,8 +49,8 @@ func ContextWithTenant(ctx context.Context, tenant string) context.Context {
 
 // Extractor extracts and validates tenant from requests.
 type Extractor struct {
-	config   Config
-	allowed  map[string]struct{}
+	config  Config
+	allowed map[string]struct{}
 }
 
 // NewExtractor creates a new tenant Extractor.

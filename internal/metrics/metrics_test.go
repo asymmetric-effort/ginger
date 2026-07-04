@@ -266,7 +266,7 @@ func TestRegistryRegisterAndWrite(t *testing.T) {
 	c.Inc("POST")
 
 	var buf bytes.Buffer
-	if err := r.WriteTo(&buf); err != nil {
+	if err := r.WriteMetrics(&buf); err != nil {
 		t.Fatalf("WriteTo failed: %v", err)
 	}
 
@@ -317,7 +317,7 @@ func TestRegistryHistogramOutput(t *testing.T) {
 	h.Observe(0.8)
 
 	var buf bytes.Buffer
-	if err := r.WriteTo(&buf); err != nil {
+	if err := r.WriteMetrics(&buf); err != nil {
 		t.Fatalf("WriteTo failed: %v", err)
 	}
 
@@ -341,7 +341,7 @@ func TestRegistryGaugeOutput(t *testing.T) {
 	g.Set(42)
 
 	var buf bytes.Buffer
-	if err := r.WriteTo(&buf); err != nil {
+	if err := r.WriteMetrics(&buf); err != nil {
 		t.Fatalf("WriteTo failed: %v", err)
 	}
 
@@ -413,7 +413,7 @@ func TestHistogramTooManyLabels(t *testing.T) {
 func TestRegistryWriteToErrorOnHelp(t *testing.T) {
 	r := NewRegistry()
 	r.MustRegister(NewCounter("test", "help"))
-	err := r.WriteTo(&failWriter{failAfter: 0})
+	err := r.WriteMetrics(&failWriter{failAfter: 0})
 	if err == nil {
 		t.Error("expected write error")
 	}
@@ -422,7 +422,7 @@ func TestRegistryWriteToErrorOnHelp(t *testing.T) {
 func TestRegistryWriteToErrorOnType(t *testing.T) {
 	r := NewRegistry()
 	r.MustRegister(NewCounter("test", "help"))
-	err := r.WriteTo(&failWriter{failAfter: 1})
+	err := r.WriteMetrics(&failWriter{failAfter: 1})
 	if err == nil {
 		t.Error("expected write error on TYPE line")
 	}
@@ -433,7 +433,7 @@ func TestRegistryWriteToErrorOnMetric(t *testing.T) {
 	c := NewCounter("test", "help")
 	r.MustRegister(c)
 	c.Inc()
-	err := r.WriteTo(&failWriter{failAfter: 2})
+	err := r.WriteMetrics(&failWriter{failAfter: 2})
 	if err == nil {
 		t.Error("expected write error on metric line")
 	}
@@ -465,7 +465,7 @@ func TestHistogramWithLabelsOutput(t *testing.T) {
 	h.Observe(0.05, "/api")
 
 	var buf bytes.Buffer
-	if err := r.WriteTo(&buf); err != nil {
+	if err := r.WriteMetrics(&buf); err != nil {
 		t.Fatalf("WriteTo failed: %v", err)
 	}
 	output := buf.String()
@@ -481,7 +481,7 @@ func TestCounterNoLabelsOutput(t *testing.T) {
 	c.Inc()
 
 	var buf bytes.Buffer
-	if err := r.WriteTo(&buf); err != nil {
+	if err := r.WriteMetrics(&buf); err != nil {
 		t.Fatalf("WriteTo failed: %v", err)
 	}
 	output := buf.String()
@@ -497,7 +497,7 @@ func TestGaugeNoLabelsOutput(t *testing.T) {
 	g.Set(99)
 
 	var buf bytes.Buffer
-	if err := r.WriteTo(&buf); err != nil {
+	if err := r.WriteMetrics(&buf); err != nil {
 		t.Fatalf("WriteTo failed: %v", err)
 	}
 	output := buf.String()

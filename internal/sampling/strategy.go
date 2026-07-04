@@ -18,10 +18,10 @@ const (
 
 // Strategy describes a sampling strategy for a service.
 type Strategy struct {
-	Type                    StrategyType `json:"strategyType"`
-	ProbabilisticSampling   *ProbabilisticStrategy `json:"probabilisticSampling,omitempty"`
-	RateLimitingSampling    *RateLimitingStrategy  `json:"rateLimitingSampling,omitempty"`
-	OperationSampling       *PerOperationStrategies `json:"operationSampling,omitempty"`
+	Type                  StrategyType            `json:"strategyType"`
+	ProbabilisticSampling *ProbabilisticStrategy  `json:"probabilisticSampling,omitempty"`
+	RateLimitingSampling  *RateLimitingStrategy   `json:"rateLimitingSampling,omitempty"`
+	OperationSampling     *PerOperationStrategies `json:"operationSampling,omitempty"`
 }
 
 // ProbabilisticStrategy samples at a fixed rate.
@@ -36,13 +36,13 @@ type RateLimitingStrategy struct {
 
 // PerOperationStrategies provides per-operation sampling.
 type PerOperationStrategies struct {
-	DefaultSamplingProbability float64                `json:"defaultSamplingProbability"`
-	PerOperationStrategies     []OperationStrategy    `json:"perOperationStrategies,omitempty"`
+	DefaultSamplingProbability float64             `json:"defaultSamplingProbability"`
+	PerOperationStrategies     []OperationStrategy `json:"perOperationStrategies,omitempty"`
 }
 
 // OperationStrategy is per-operation probabilistic sampling.
 type OperationStrategy struct {
-	Operation            string                 `json:"operation"`
+	Operation             string                `json:"operation"`
 	ProbabilisticSampling ProbabilisticStrategy `json:"probabilisticSampling"`
 }
 
@@ -59,14 +59,14 @@ type FileProvider struct {
 }
 
 type strategiesFile struct {
-	DefaultStrategy    *Strategy         `json:"default_strategy"`
-	ServiceStrategies  []serviceStrategy `json:"service_strategies"`
+	DefaultStrategy   *Strategy         `json:"default_strategy"`
+	ServiceStrategies []serviceStrategy `json:"service_strategies"`
 }
 
 type serviceStrategy struct {
-	Service  string  `json:"service"`
-	Type     string  `json:"type"`
-	Param    float64 `json:"param"`
+	Service string  `json:"service"`
+	Type    string  `json:"type"`
+	Param   float64 `json:"param"`
 }
 
 // NewFileProvider creates a FileProvider from the given JSON file.
@@ -94,7 +94,7 @@ func (fp *FileProvider) GetSamplingStrategy(service string) (*Strategy, error) {
 	}
 
 	return &Strategy{
-		Type: StrategyProbabilistic,
+		Type:                  StrategyProbabilistic,
 		ProbabilisticSampling: &ProbabilisticStrategy{SamplingRate: 1.0},
 	}, nil
 }
@@ -137,12 +137,12 @@ func serviceStrategyToStrategy(ss serviceStrategy) *Strategy {
 	switch ss.Type {
 	case "rate_limiting":
 		return &Strategy{
-			Type: StrategyRateLimiting,
+			Type:                 StrategyRateLimiting,
 			RateLimitingSampling: &RateLimitingStrategy{MaxTracesPerSecond: int32(ss.Param)},
 		}
 	default: // probabilistic
 		return &Strategy{
-			Type: StrategyProbabilistic,
+			Type:                  StrategyProbabilistic,
 			ProbabilisticSampling: &ProbabilisticStrategy{SamplingRate: ss.Param},
 		}
 	}

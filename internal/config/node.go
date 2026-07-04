@@ -16,8 +16,8 @@ const (
 type Node struct {
 	Kind     NodeKind
 	Value    string
-	Children []*Node   // for sequences
-	Keys     []string  // for mappings (preserves order)
+	Children []*Node          // for sequences
+	Keys     []string         // for mappings (preserves order)
 	Map      map[string]*Node // for mappings (fast lookup)
 	Line     int
 	Column   int

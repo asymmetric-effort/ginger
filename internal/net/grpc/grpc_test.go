@@ -84,7 +84,7 @@ func TestServerStreamingRPC(t *testing.T) {
 	srv.RegisterService(&ServiceDesc{
 		ServiceName: "test.Service",
 		Methods: []MethodDesc{{
-			Name:       "StreamEcho",
+			Name:        "StreamEcho",
 			IsStreaming: true,
 			StreamHandler: func(ctx context.Context, reqData []byte, stream ServerStream) error {
 				stream.Send([]byte("msg1"))
@@ -216,7 +216,7 @@ func TestServerStreamError(t *testing.T) {
 	srv.RegisterService(&ServiceDesc{
 		ServiceName: "test.Service",
 		Methods: []MethodDesc{{
-			Name:       "FailStream",
+			Name:        "FailStream",
 			IsStreaming: true,
 			StreamHandler: func(ctx context.Context, reqData []byte, stream ServerStream) error {
 				return NewStatusError(13, "stream failed")
@@ -550,9 +550,9 @@ func TestReadMessageGzipDecompressError(t *testing.T) {
 	data := []byte("abc")
 	// Stored DEFLATE block: 0x01 (final, no compress), LEN lo/hi, NLEN lo/hi, data
 	deflate := []byte{
-		0x01,                               // BFINAL=1 BTYPE=00
-		byte(len(data)), 0x00,              // LEN = 3 (little-endian)
-		byte(^len(data)), 0xFF,             // NLEN = ~LEN = 0xFC 0xFF
+		0x01,                  // BFINAL=1 BTYPE=00
+		byte(len(data)), 0x00, // LEN = 3 (little-endian)
+		byte(^len(data)), 0xFF, // NLEN = ~LEN = 0xFC 0xFF
 	}
 	deflate = append(deflate, data...)
 

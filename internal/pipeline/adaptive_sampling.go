@@ -21,12 +21,12 @@ type AdaptiveSamplingConfig struct {
 
 // AdaptiveSamplingProcessor adjusts sampling rate based on throughput.
 type AdaptiveSamplingProcessor struct {
-	config    AdaptiveSamplingConfig
-	mu        sync.RWMutex
-	rates     map[string]float64 // service → probability
-	counters  map[string]*atomic.Int64
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	config   AdaptiveSamplingConfig
+	mu       sync.RWMutex
+	rates    map[string]float64 // service → probability
+	counters map[string]*atomic.Int64
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 // NewAdaptiveSamplingProcessor creates an adaptive head-based sampler.

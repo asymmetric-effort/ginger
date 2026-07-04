@@ -17,15 +17,13 @@ type BatchConfig struct {
 
 // BatchProcessor accumulates spans and flushes them in batches.
 type BatchProcessor struct {
-	config  BatchConfig
-	next    Exporter
-	mu      sync.Mutex
-	batch   []otlp.Span
-	res     otlp.Resource
-	scope   otlp.InstrumentationScope
-	timer   *time.Timer
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
+	config BatchConfig
+	next   Exporter
+	mu     sync.Mutex
+	batch  []otlp.Span
+	res    otlp.Resource
+	scope  otlp.InstrumentationScope
+	timer  *time.Timer
 }
 
 // NewBatchProcessor creates a batch processor that forwards to the given exporter.

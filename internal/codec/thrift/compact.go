@@ -33,7 +33,7 @@ func (e *CompactEncoder) WriteBool(v bool) {
 }
 
 // WriteByte writes a single byte.
-func (e *CompactEncoder) WriteByte(v byte) {
+func (e *CompactEncoder) WriteI8(v byte) {
 	e.buf = append(e.buf, v)
 }
 
@@ -277,9 +277,10 @@ func (d *CompactDecoder) ReadFieldBegin() (fieldType TType, fieldID int16, err e
 	d.lastField[len(d.lastField)-1] = fieldID
 
 	fieldType = compactTypeToTType(compactType)
-	if compactType == compactBoolTrue {
+	switch compactType {
+	case compactBoolTrue:
 		d.boolValue = 1
-	} else if compactType == compactBoolFalse {
+	case compactBoolFalse:
 		d.boolValue = 0
 	}
 

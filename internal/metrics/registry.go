@@ -70,7 +70,7 @@ func (r *Registry) MustRegister(c Collector) {
 }
 
 // WriteTo writes all metrics in Prometheus text exposition format to the writer.
-func (r *Registry) WriteTo(w io.Writer) error {
+func (r *Registry) WriteMetrics(w io.Writer) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

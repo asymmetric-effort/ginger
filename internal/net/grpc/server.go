@@ -43,7 +43,7 @@ type MethodDesc struct {
 	Name          string
 	UnaryHandler  UnaryHandler
 	StreamHandler StreamHandler
-	IsStreaming    bool
+	IsStreaming   bool
 }
 
 // ServiceDesc describes a gRPC service.

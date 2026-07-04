@@ -12,7 +12,7 @@ import (
 type Precision int
 
 const (
-	PrecisionNanosecond  Precision = iota
+	PrecisionNanosecond Precision = iota
 	PrecisionMicrosecond
 	PrecisionMillisecond
 	PrecisionSecond

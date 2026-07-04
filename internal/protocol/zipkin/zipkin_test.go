@@ -69,13 +69,13 @@ func TestMarshalArray(t *testing.T) {
 
 func TestToOTLP(t *testing.T) {
 	spans := []Span{{
-		TraceID:   "0af7651916cd43dd8448eb211c80319c",
-		ID:        "b7ad6b7169203331",
-		ParentID:  "0000000000000001",
-		Name:      "test-op",
-		Kind:      KindServer,
-		Timestamp: 1000000,
-		Duration:  500000,
+		TraceID:       "0af7651916cd43dd8448eb211c80319c",
+		ID:            "b7ad6b7169203331",
+		ParentID:      "0000000000000001",
+		Name:          "test-op",
+		Kind:          KindServer,
+		Timestamp:     1000000,
+		Duration:      500000,
 		LocalEndpoint: &Endpoint{ServiceName: "svc1"},
 		RemoteEndpoint: &Endpoint{
 			ServiceName: "upstream",

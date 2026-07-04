@@ -59,7 +59,7 @@ func TestBinaryBool(t *testing.T) {
 
 func TestBinaryByte(t *testing.T) {
 	enc := NewBinaryEncoder()
-	enc.WriteByte(0xAB)
+	enc.WriteI8(0xAB)
 	dec := NewBinaryDecoder(enc.Bytes())
 	got, err := dec.ReadByte()
 	if err != nil {

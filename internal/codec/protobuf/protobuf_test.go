@@ -248,7 +248,7 @@ func TestTaggedFieldsRoundTrip(t *testing.T) {
 	assertEqual(t, v, uint64(42))
 
 	// Field 2: signed varint
-	fn, wt, err = dec.ReadField()
+	fn, _, err = dec.ReadField()
 	assertNoErr(t, err)
 	assertEqual(t, fn, uint32(2))
 	sv, err := dec.ReadSignedVarint()
@@ -625,7 +625,7 @@ func TestReadPackedVarintsError(t *testing.T) {
 func TestReadPackedVarintsInnerError(t *testing.T) {
 	// Create a packed field with a truncated varint inside
 	enc := NewEncoder()
-	enc.WriteVarint(2)           // length = 2
+	enc.WriteVarint(2)               // length = 2
 	enc.WriteRaw([]byte{0x80, 0x80}) // two continuation bytes, no terminator (but exactly 2 bytes)
 	dec := NewDecoder(enc.Bytes())
 	enc.Release()
