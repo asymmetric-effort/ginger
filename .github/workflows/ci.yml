@@ -297,6 +297,61 @@ jobs:
         run: |
           helm push /tmp/helm-packages/ginger-*.tgz oci://ghcr.io/asymmetric-effort/charts
 
+  package-npm:
+    name: Package npm
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Node
+        uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22.15.0"
+
+      - name: Install and build
+        working-directory: sdk/typescript
+        run: |
+          npm install --ignore-scripts
+          npx tsc
+
+      - name: Configure npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > sdk/typescript/.npmrc
+
+      - name: Publish
+        working-directory: sdk/typescript
+        run: npm publish --access public
+
+  package-pypi:
+    name: Package PyPI
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Python
+        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build package
+        working-directory: sdk/python
+        run: python -m build
+
+      - name: Publish to PyPI
+        working-directory: sdk/python
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/*
+
   lint-python:
     name: Lint Python SDK
     runs-on: ubuntu-latest
