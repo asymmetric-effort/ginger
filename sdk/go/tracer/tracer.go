@@ -37,9 +37,10 @@ const (
 
 // Tracer creates spans.
 type Tracer struct {
-	config Config
-	mu     sync.Mutex
-	spans  []*Span
+	config   Config
+	mu       sync.Mutex
+	spans    []*Span
+	exporter *OTLPHTTPExporter
 }
 
 // New creates a new Tracer.
@@ -50,7 +51,11 @@ func New(config Config) *Tracer {
 	if config.BatchSize <= 0 {
 		config.BatchSize = 512
 	}
-	return &Tracer{config: config}
+	t := &Tracer{config: config}
+	if config.Endpoint != "" {
+		t.exporter = NewOTLPHTTPExporter(config.Endpoint, config.Service, config.BatchSize)
+	}
+	return t
 }
 
 type spanContextKey struct{}
@@ -81,9 +86,19 @@ func (t *Tracer) Start(ctx context.Context, name string, opts ...SpanOption) (co
 	return context.WithValue(ctx, spanContextKey{}, s), s
 }
 
-// Shutdown flushes remaining spans.
+// Shutdown flushes remaining spans to the OTLP endpoint.
 func (t *Tracer) Shutdown() {
-	// In a full implementation, this would flush to the OTLP endpoint
+	if t.exporter == nil {
+		return
+	}
+	t.mu.Lock()
+	spans := t.spans
+	t.spans = nil
+	t.mu.Unlock()
+	if len(spans) > 0 {
+		_ = t.exporter.Export(spans...)
+	}
+	_ = t.exporter.Shutdown()
 }
 
 // SpanOption configures a span.
