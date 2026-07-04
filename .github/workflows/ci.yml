@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
   lint:
@@ -302,6 +303,12 @@ jobs:
     needs: pdv
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@asymmetric-effort/ginger
     steps:
       - name: Checkout
         uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
@@ -317,12 +324,9 @@ jobs:
           npm install --ignore-scripts
           npx tsc
 
-      - name: Configure npm auth
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > sdk/typescript/.npmrc
-
-      - name: Publish
+      - name: Publish with provenance
         working-directory: sdk/typescript
-        run: npm publish --access public
+        run: npm publish --access public --provenance
 
   package-pypi:
     name: Package PyPI

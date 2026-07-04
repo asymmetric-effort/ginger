@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   release:
@@ -93,6 +94,12 @@ jobs:
     name: Release npm Package
     needs: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@asymmetric-effort/ginger
     steps:
       - name: Checkout
         uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
@@ -110,12 +117,9 @@ jobs:
         working-directory: sdk/typescript
         run: npx tsc
 
-      - name: Configure npm auth
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > sdk/typescript/.npmrc
-
-      - name: Publish to npm
+      - name: Publish to npm with provenance
         working-directory: sdk/typescript
-        run: npm publish --access public
+        run: npm publish --access public --provenance
 
   release-pypi:
     name: Release PyPI Package
