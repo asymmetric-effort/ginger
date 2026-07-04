@@ -349,7 +349,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install build tools
-        run: pip install build "twine>=6.0.0" id
+        run: pip install build "twine>=6.1.0" "packaging>=24.2" id
 
       - name: Build package
         working-directory: sdk/python
