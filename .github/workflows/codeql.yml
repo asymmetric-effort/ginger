@@ -31,14 +31,14 @@ jobs:
           go-version-file: go.mod
 
       - name: Initialize CodeQL
-        uses: asymmetric-effort/actions/actions/codeql-init@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        uses: github/codeql-action/init@3cf0a529d8434171b6af190714e8d5b7abb83927
         with:
           languages: ${{ matrix.language }}
 
       - name: Autobuild
-        uses: asymmetric-effort/actions/actions/codeql-autobuild@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        uses: github/codeql-action/autobuild@3cf0a529d8434171b6af190714e8d5b7abb83927
 
       - name: Perform CodeQL Analysis
-        uses: asymmetric-effort/actions/actions/codeql-analyze@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        uses: github/codeql-action/analyze@3cf0a529d8434171b6af190714e8d5b7abb83927
         with:
           category: "/language:${{ matrix.language }}"

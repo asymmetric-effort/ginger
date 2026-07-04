@@ -534,7 +534,6 @@ func parseFetchResponse(r io.Reader) ([][]byte, int64, error) {
 				off += 4
 
 				if off+msgSize > msgSetEnd || msgSize < 14 {
-					off = msgSetEnd
 					break
 				}
 

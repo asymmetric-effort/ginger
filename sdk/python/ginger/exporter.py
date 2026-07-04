@@ -3,7 +3,6 @@
 import json
 import threading
 import urllib.request
-from typing import Optional
 
 from ginger.tracer import Span
 
