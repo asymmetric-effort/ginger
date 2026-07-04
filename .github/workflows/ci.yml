@@ -85,7 +85,9 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run tests with coverage
-        run: go test -race -coverprofile=coverage.txt -covermode=atomic ./internal/... ./sdk/go/... ./tests/integration/...
+        run: |
+          go test -race -coverprofile=coverage.txt -covermode=atomic ./internal/... ./tests/integration/...
+          cd sdk/go && go test -race ./...
       - name: Enforce coverage threshold
         run: |
           COVERAGE=$(go tool cover -func=coverage.txt | grep total | awk '{print substr($3, 1, length($3)-1)}')
