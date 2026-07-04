@@ -4,7 +4,7 @@ import os
 import time
 import uuid
 from enum import IntEnum
-from typing import Any, Optional
+from typing import Any
 
 
 class SpanKind(IntEnum):
@@ -50,7 +50,7 @@ class Span:
         self.status_code = code
         self.status_message = message
 
-    def add_event(self, name: str, attributes: Optional[dict[str, str]] = None) -> None:
+    def add_event(self, name: str, attributes: dict[str, str] | None = None) -> None:
         self.events.append(
             {"name": name, "timestamp": time.time_ns(), "attributes": attributes or {}}
         )
@@ -90,7 +90,7 @@ class Tracer:
         self,
         name: str,
         kind: SpanKind = SpanKind.INTERNAL,
-        attributes: Optional[dict[str, Any]] = None,
+        attributes: dict[str, Any] | None = None,
     ) -> Span:
         trace_id = uuid.uuid4().hex
         span_id = uuid.uuid4().hex[:16]

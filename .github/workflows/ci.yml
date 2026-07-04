@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   lint:
@@ -118,13 +119,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Download build artifact
-        continue-on-error: true
-        uses: asymmetric-effort/actions/actions/download-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-        with:
-          name: ginger-linux-amd64
-          path: bin/
-
       - name: Build binary for E2E
         run: |
           CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
@@ -133,6 +127,230 @@ jobs:
       - name: Run E2E tests
         run: |
           go test -tags=e2e -race -timeout 10m ./tests/e2e/...
+
+  pdv:
+    name: Post-Deployment Verification
+    needs: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Go
+        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
+          chmod +x bin/ginger
+
+      - name: Start ginger server
+        run: |
+          bin/ginger &
+          SERVER_PID=$!
+          echo "SERVER_PID=${SERVER_PID}" >> "$GITHUB_ENV"
+          sleep 3
+
+      - name: PDV - Health liveness
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:14269/health/live)
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: liveness probe returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: liveness probe returned 200"
+
+      - name: PDV - Health readiness
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:14269/health/ready)
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: readiness probe returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: readiness probe returned 200"
+
+      - name: PDV - OTLP trace ingest
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://localhost:4318/v1/traces \
+            -H "Content-Type: application/json" \
+            -d '{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"00000000000000000000000000000001","spanId":"0000000000000001","name":"pdv-test","startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000"}]}]}]}')
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: OTLP ingest returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: OTLP ingest returned 200"
+
+      - name: PDV - Query services endpoint
+        run: |
+          sleep 2
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:16686/api/v3/services)
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: query services returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: query services returned 200"
+
+      - name: PDV - Query API v2 compatibility
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:16686/api/services)
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: v2 API returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: v2 API returned 200"
+
+      - name: PDV - Sampling endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:16686/api/sampling?service=pdv-test")
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: sampling returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: sampling returned 200"
+
+      - name: PDV - Version endpoint
+        run: |
+          VERSION=$(bin/ginger version)
+          echo "Version: ${VERSION}"
+          if ! echo "$VERSION" | grep -q "ginger v"; then
+            echo "FAIL: version output invalid"
+            exit 1
+          fi
+          echo "PASS: version output valid"
+
+      - name: Stop ginger server
+        if: always()
+        run: |
+          if [ -n "${SERVER_PID}" ]; then
+            kill "${SERVER_PID}" 2>/dev/null || true
+            wait "${SERVER_PID}" 2>/dev/null || true
+          fi
+
+  package-docker:
+    name: Package Docker Image
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHA="${GITHUB_SHA::8}"
+          echo "sha_tag=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "date_tag=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version_tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/asymmetric-effort/ginger" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }} \
+            -t ghcr.io/asymmetric-effort/ginger:latest \
+            .
+
+      - name: Verify Docker image
+        run: |
+          docker run --rm ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }} version
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }}
+          docker push ghcr.io/asymmetric-effort/ginger:latest
+
+  package-helm:
+    name: Package Helm Chart
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Install Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
+
+      - name: Lint Helm chart
+        run: helm lint deploy/helm/ginger
+
+      - name: Package Helm chart
+        run: |
+          helm package deploy/helm/ginger --destination /tmp/helm-packages
+
+      - name: Log in to GHCR for Helm
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push Helm chart to OCI registry
+        run: |
+          helm push /tmp/helm-packages/ginger-*.tgz oci://ghcr.io/asymmetric-effort/charts
+
+  package-npm:
+    name: Package npm
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Node
+        uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22.15.0"
+
+      - name: Install and build
+        working-directory: sdk/typescript
+        run: |
+          npm install --ignore-scripts
+          npx tsc
+
+      - name: Configure npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > sdk/typescript/.npmrc
+
+      - name: Publish
+        working-directory: sdk/typescript
+        run: npm publish --access public
+
+  package-pypi:
+    name: Package PyPI
+    needs: pdv
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+      - name: Setup Python
+        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build package
+        working-directory: sdk/python
+        run: python -m build
+
+      - name: Publish to PyPI
+        working-directory: sdk/python
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/*
 
   lint-python:
     name: Lint Python SDK
