@@ -157,7 +157,8 @@ jobs:
           curl -sf http://localhost:16686/api/v3/services > /dev/null && echo "PASS: query"
           curl -sf "http://localhost:16686/api/sampling?service=pdv" > /dev/null && echo "PASS: sampling"
       - name: PDV - Version
-        run: bin/ginger version | grep -q "ginger v" && echo "PASS: version"
+        run: |
+          bin/ginger version | grep -q "ginger v" && echo "PASS version"
       - if: always()
         run: kill "${SERVER_PID}" 2>/dev/null || true
 
