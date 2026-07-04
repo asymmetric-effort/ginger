@@ -17,13 +17,13 @@ const (
 
 // AnyValue is a tagged union for attribute values. No interface{}.
 type AnyValue struct {
-	Type     AnyValueType
-	Str      string
-	BoolVal  bool
-	IntVal   int64
+	Type      AnyValueType
+	Str       string
+	BoolVal   bool
+	IntVal    int64
 	DoubleVal float64
-	BytesVal []byte
-	ArrayVal []AnyValue
+	BytesVal  []byte
+	ArrayVal  []AnyValue
 	KvListVal []KeyValue
 }
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 
-	grpcpkg "github.com/asymmetric-effort/ginger/internal/net/grpc"
 	"github.com/asymmetric-effort/ginger/internal/codec/protobuf"
+	grpcpkg "github.com/asymmetric-effort/ginger/internal/net/grpc"
 	"github.com/asymmetric-effort/ginger/internal/protocol/otlp"
 	"github.com/asymmetric-effort/ginger/internal/storage"
 )

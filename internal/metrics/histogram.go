@@ -11,21 +11,21 @@ var DefaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 
 // Histogram tracks the distribution of observed values.
 type Histogram struct {
-	desc    Desc
-	labels  []string
-	bounds  []float64
+	desc   Desc
+	labels []string
+	bounds []float64
 
 	mu     sync.RWMutex
 	values map[LabelSet]*histogramValue
 }
 
 type histogramValue struct {
-	mu      sync.Mutex
-	bounds  []float64
-	counts  []uint64 // one per bucket + overflow
-	sum     float64
-	count   uint64
-	labels  []Label
+	mu     sync.Mutex
+	bounds []float64
+	counts []uint64 // one per bucket + overflow
+	sum    float64
+	count  uint64
+	labels []Label
 }
 
 // NewHistogram creates a new Histogram with the given bucket boundaries.

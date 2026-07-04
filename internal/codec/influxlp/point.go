@@ -4,19 +4,19 @@ import "time"
 
 // FieldValue represents an InfluxDB field value.
 type FieldValue struct {
-	Type    FieldType
-	String  string
-	Int     int64
-	Float   float64
-	Bool    bool
-	UInt    uint64
+	Type   FieldType
+	String string
+	Int    int64
+	Float  float64
+	Bool   bool
+	UInt   uint64
 }
 
 // FieldType identifies the type of a field value.
 type FieldType byte
 
 const (
-	FieldTypeFloat  FieldType = iota
+	FieldTypeFloat FieldType = iota
 	FieldTypeInt
 	FieldTypeUInt
 	FieldTypeBool

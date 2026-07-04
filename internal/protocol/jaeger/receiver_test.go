@@ -392,7 +392,7 @@ func TestDecodeThriftSpanTraceIdHigh_ReadI64Error(t *testing.T) {
 	enc.WriteFieldBegin(thrift.TypeI64, 1) // traceIdLow ok
 	enc.WriteI64(1)
 	enc.WriteFieldBegin(thrift.TypeI64, 2) // traceIdHigh truncated
-	enc.WriteI32(999)                       // only 4 bytes
+	enc.WriteI32(999)                      // only 4 bytes
 	_, err := decodeThriftBatch(enc.Bytes())
 	if err == nil {
 		t.Error("expected error for truncated traceIdHigh")
@@ -468,7 +468,7 @@ func TestDecodeThriftSpanOperationName_ReadStringError(t *testing.T) {
 	enc.WriteFieldBegin(thrift.TypeI64, 3)
 	enc.WriteI64(3)
 	enc.WriteFieldBegin(thrift.TypeString, 5) // operationName truncated
-	enc.WriteI32(100)                          // claim 100 bytes but don't write them
+	enc.WriteI32(100)                         // claim 100 bytes but don't write them
 	_, err := decodeThriftBatch(enc.Bytes())
 	if err == nil {
 		t.Error("expected error for truncated operationName")

@@ -215,13 +215,13 @@ items:
 }
 
 type testConfig struct {
-	Name    string        `yaml:"name"`
-	Port    int           `yaml:"port"`
-	Rate    float64       `yaml:"rate"`
-	Enabled bool          `yaml:"enabled"`
-	Timeout time.Duration `yaml:"timeout"`
-	Tags    []string      `yaml:"tags"`
-	Server  testServer    `yaml:"server"`
+	Name    string            `yaml:"name"`
+	Port    int               `yaml:"port"`
+	Rate    float64           `yaml:"rate"`
+	Enabled bool              `yaml:"enabled"`
+	Timeout time.Duration     `yaml:"timeout"`
+	Tags    []string          `yaml:"tags"`
+	Server  testServer        `yaml:"server"`
 	Extra   map[string]string `yaml:"extra"`
 }
 

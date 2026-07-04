@@ -101,9 +101,9 @@ type TailSamplingProcessor struct {
 }
 
 type traceBuffer struct {
-	spans    []otlp.Span
-	resource otlp.Resource
-	scope    otlp.InstrumentationScope
+	spans     []otlp.Span
+	resource  otlp.Resource
+	scope     otlp.InstrumentationScope
 	firstSeen time.Time
 }
 

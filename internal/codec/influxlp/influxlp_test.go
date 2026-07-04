@@ -323,7 +323,7 @@ func TestDecodeBoolVariants(t *testing.T) {
 
 func TestDecodeEscaping(t *testing.T) {
 	dec := NewDecoder()
-	points, err := dec.Decode([]byte(`my\ measurement,tag\,key=tag\=value field\ key="say \"hello\""`)	)
+	points, err := dec.Decode([]byte(`my\ measurement,tag\,key=tag\=value field\ key="say \"hello\""`))
 	if err != nil {
 		t.Fatal(err)
 	}

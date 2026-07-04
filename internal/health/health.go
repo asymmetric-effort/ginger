@@ -11,8 +11,8 @@ import (
 type Status string
 
 const (
-	StatusLive    Status = "live"
-	StatusReady   Status = "ready"
+	StatusLive     Status = "live"
+	StatusReady    Status = "ready"
 	StatusNotReady Status = "not_ready"
 )
 

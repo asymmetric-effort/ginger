@@ -38,8 +38,8 @@ func TestGRPCReceiverPostSpans(t *testing.T) {
 		// field 2 = spans (repeated message)
 		batchEnc.EncodeMessage(2, func(spanEnc *protobuf.Encoder) {
 			spanEnc.WriteTagBytes(1, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}) // trace_id
-			spanEnc.WriteTagBytes(2, []byte{1, 2, 3, 4, 5, 6, 7, 8})                                 // span_id
-			spanEnc.WriteTagString(3, "test-op")                                                       // operation_name
+			spanEnc.WriteTagBytes(2, []byte{1, 2, 3, 4, 5, 6, 7, 8})                                // span_id
+			spanEnc.WriteTagString(3, "test-op")                                                    // operation_name
 		})
 	})
 	reqData := make([]byte, enc.Len())
@@ -350,7 +350,7 @@ func TestUnmarshalProtobufBatchInnerReadFieldError(t *testing.T) {
 	// batch submessage contains just 0x80 (truncated varint)
 	inner := []byte{0x80} // truncated
 	data := make([]byte, 0, 10)
-	data = append(data, 0x0A)           // tag field 1, wireBytes
+	data = append(data, 0x0A)             // tag field 1, wireBytes
 	data = append(data, byte(len(inner))) // length
 	data = append(data, inner...)
 	_, err := unmarshalProtobufBatch(data)

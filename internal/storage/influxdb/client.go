@@ -17,14 +17,14 @@ import (
 
 // ClientConfig configures the InfluxDB HTTP client.
 type ClientConfig struct {
-	Endpoint     string
-	Org          string
-	Bucket       string
-	Token        string
-	TLSConfig    *tls.Config
-	WriteTimeout time.Duration
-	QueryTimeout time.Duration
-	MaxBatchSize int
+	Endpoint      string
+	Org           string
+	Bucket        string
+	Token         string
+	TLSConfig     *tls.Config
+	WriteTimeout  time.Duration
+	QueryTimeout  time.Duration
+	MaxBatchSize  int
 	MaxBatchBytes int64
 }
 

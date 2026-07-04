@@ -653,9 +653,9 @@ func TestUnmarshalUnknownFieldsInSubMessages(t *testing.T) {
 	anyValueMsg = append(anyValueMsg, unknownField...) // unknown in AnyValue
 
 	// KeyValue: field1="k", field2=anyValueMsg
-	kvMsg := buildLenDelim(0x0A, []byte("k"))                   // field 1, string "k"
-	kvMsg = append(kvMsg, buildLenDelim(0x12, anyValueMsg)...)  // field 2, embedded AnyValue
-	kvMsg = append(kvMsg, unknownField...)                       // unknown in KeyValue
+	kvMsg := buildLenDelim(0x0A, []byte("k"))                  // field 1, string "k"
+	kvMsg = append(kvMsg, buildLenDelim(0x12, anyValueMsg)...) // field 2, embedded AnyValue
+	kvMsg = append(kvMsg, unknownField...)                     // unknown in KeyValue
 
 	// Resource: field1=kvMsg
 	resourceMsg := buildLenDelim(0x0A, kvMsg)
@@ -667,8 +667,8 @@ func TestUnmarshalUnknownFieldsInSubMessages(t *testing.T) {
 	spanID := make([]byte, 8)
 	spanID[0] = 1
 
-	spanMsg := buildLenDelim(0x0A, traceID)                   // field 1 = TraceID
-	spanMsg = append(spanMsg, buildLenDelim(0x12, spanID)...) // field 2 = SpanID
+	spanMsg := buildLenDelim(0x0A, traceID)                                // field 1 = TraceID
+	spanMsg = append(spanMsg, buildLenDelim(0x12, spanID)...)              // field 2 = SpanID
 	spanMsg = append(spanMsg, buildLenDelim(0x2A, []byte("test-span"))...) // field 5 = Name
 	// StartTimeUnixNano (field 7, fixed64 = 0x39): value 1000
 	spanMsg = append(spanMsg, encodeFixed64Tag(0x39, 1000)...)
@@ -698,7 +698,7 @@ func TestUnmarshalUnknownFieldsInSubMessages(t *testing.T) {
 	spanMsg = append(spanMsg, buildLenDelim(0x6A, statusMsg)...) // field 13 = Status
 
 	// InstrumentationScope with unknown field
-	scopeMsg := buildLenDelim(0x0A, []byte("mylib")) // field 1 = name
+	scopeMsg := buildLenDelim(0x0A, []byte("mylib"))                   // field 1 = name
 	scopeMsg = append(scopeMsg, buildLenDelim(0x12, []byte("1.0"))...) // field 2 = version
 	scopeMsg = append(scopeMsg, unknownField...)
 
@@ -794,12 +794,12 @@ func TestUnmarshalUnknownFieldsInArrayValue(t *testing.T) {
 	spanMsg = append(spanMsg, buildLenDelim(0x2A, []byte("test"))...)
 	spanMsg = append(spanMsg, encodeFixed64Tag(0x39, 1)...)
 	spanMsg = append(spanMsg, encodeFixed64Tag(0x41, 2)...)
-	spanMsg = append(spanMsg, buildLenDelim(0x4A, kvMsg)...)   // field 9 = attribute (arr)
-	spanMsg = append(spanMsg, buildLenDelim(0x4A, kvMsg2)...)  // field 9 = attribute (kvlist)
+	spanMsg = append(spanMsg, buildLenDelim(0x4A, kvMsg)...)  // field 9 = attribute (arr)
+	spanMsg = append(spanMsg, buildLenDelim(0x4A, kvMsg2)...) // field 9 = attribute (kvlist)
 
 	scopeSpansMsg := buildLenDelim(0x12, spanMsg) // field 2 = span
-	rsMsg := buildLenDelim(0x12, scopeSpansMsg)    // field 2 = scopeSpans
-	tdMsg := buildLenDelim(0x0A, rsMsg)             // field 1 = resourceSpans
+	rsMsg := buildLenDelim(0x12, scopeSpansMsg)   // field 2 = scopeSpans
+	tdMsg := buildLenDelim(0x0A, rsMsg)           // field 1 = resourceSpans
 
 	td, err := Unmarshal(tdMsg)
 	if err != nil {
@@ -1049,16 +1049,16 @@ func TestUnmarshalReadMessageErrors(t *testing.T) {
 	truncatedScopeInSS := []byte{0x0A, 0x0A, 0x01, 0x02} // tag 0x0A, len=10, 2 bytes
 	// ScopeSpans embedded in ResourceSpans as field 2 (tag 0x12)
 	rsMsgForScope := buildLenDelim(0x12, truncatedScopeInSS) // RS message with field 2 = SS
-	tdForScope := buildLenDelim(0x0A, rsMsgForScope)          // TD with field 1 = RS
+	tdForScope := buildLenDelim(0x0A, rsMsgForScope)         // TD with field 1 = RS
 	if _, err := Unmarshal(tdForScope); err == nil {
 		t.Error("unmarshalScopeSpans: expected error on truncated Scope")
 	}
 
 	// Truncated Span inside ScopeSpans
 	// ScopeSpans message: field 2 (Span), len=10, 2 bytes → ReadMessage will fail
-	truncatedSpanInSS := []byte{0x12, 0x0A, 0x01, 0x02} // tag 0x12, len=10, 2 bytes
+	truncatedSpanInSS := []byte{0x12, 0x0A, 0x01, 0x02}    // tag 0x12, len=10, 2 bytes
 	rsMsgForSpan := buildLenDelim(0x12, truncatedSpanInSS) // RS message with field 2 = SS
-	tdForSpan := buildLenDelim(0x0A, rsMsgForSpan)          // TD with field 1 = RS
+	tdForSpan := buildLenDelim(0x0A, rsMsgForSpan)         // TD with field 1 = RS
 	if _, err := Unmarshal(tdForSpan); err == nil {
 		t.Error("unmarshalScopeSpans: expected error on truncated Span")
 	}
@@ -1250,7 +1250,7 @@ func TestUnmarshalReadMessageErrors(t *testing.T) {
 	// Instead test a ReadField error inside unmarshalResourceSpans
 	// by having a truncated field tag at the end
 	rsWithTruncTag := buildLenDelim(0x12, []byte{}) // valid empty ScopeSpans
-	rsWithTruncTag = append(rsWithTruncTag, 0xFF)    // incomplete multi-byte varint
+	rsWithTruncTag = append(rsWithTruncTag, 0xFF)   // incomplete multi-byte varint
 	tdWithTruncRS := buildLenDelim(0x0A, rsWithTruncTag)
 	if _, err := Unmarshal(tdWithTruncRS); err == nil {
 		t.Error("unmarshalResourceSpans: expected error on truncated field tag")
@@ -1267,11 +1267,11 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 	// --- unmarshalResource: unmarshalKeyValue error ---
 	// KV message that causes unmarshalKeyValue to fail:
 	// use a valid KV tag but with invalid wire type for the value
-	badKVMsg := buildLenDelim(0x0A, []byte("key")) // valid key
-	badKVMsg = append(badKVMsg, invalidWireTag...)  // invalid field in KV → unmarshalKeyValue errors
-	resourceWithBadKV := buildLenDelim(0x0A, badKVMsg) // Resource field 1 = KV
+	badKVMsg := buildLenDelim(0x0A, []byte("key"))       // valid key
+	badKVMsg = append(badKVMsg, invalidWireTag...)       // invalid field in KV → unmarshalKeyValue errors
+	resourceWithBadKV := buildLenDelim(0x0A, badKVMsg)   // Resource field 1 = KV
 	rsForBadKV := buildLenDelim(0x0A, resourceWithBadKV) // RS field 1 = Resource
-	tdForBadKV := buildLenDelim(0x0A, rsForBadKV)         // TD field 1 = RS
+	tdForBadKV := buildLenDelim(0x0A, rsForBadKV)        // TD field 1 = RS
 	if _, err := Unmarshal(tdForBadKV); err == nil {
 		t.Error("unmarshalResource: expected error from unmarshalKeyValue failing")
 	}
@@ -1280,10 +1280,10 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 	// Scope attribute KV is field 3 (0x1A), use invalid content
 	badScopeKVMsg := buildLenDelim(0x0A, []byte("key")) // valid key
 	badScopeKVMsg = append(badScopeKVMsg, invalidWireTag...)
-	scopeWithBadAttr := buildLenDelim(0x1A, badScopeKVMsg) // Scope field 3 = Attr KV
-	ssForBadScopeAttr := buildLenDelim(0x0A, scopeWithBadAttr) // ScopeSpans field 1 = Scope
+	scopeWithBadAttr := buildLenDelim(0x1A, badScopeKVMsg)      // Scope field 3 = Attr KV
+	ssForBadScopeAttr := buildLenDelim(0x0A, scopeWithBadAttr)  // ScopeSpans field 1 = Scope
 	rsForBadScopeAttr := buildLenDelim(0x12, ssForBadScopeAttr) // RS field 2 = SS
-	tdForBadScopeAttr := buildLenDelim(0x0A, rsForBadScopeAttr)  // TD field 1 = RS
+	tdForBadScopeAttr := buildLenDelim(0x0A, rsForBadScopeAttr) // TD field 1 = RS
 	if _, err := Unmarshal(tdForBadScopeAttr); err == nil {
 		t.Error("unmarshalScope: expected error from unmarshalKeyValue failing")
 	}
@@ -1311,7 +1311,7 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 
 	// --- unmarshalSpan: unmarshalSpanEvent error ---
 	badEventMsg := encodeFixed64Tag(0x09, 100)
-	badEventMsg = append(badEventMsg, invalidWireTag...)  // invalid field in event
+	badEventMsg = append(badEventMsg, invalidWireTag...) // invalid field in event
 	spanWithBadEvent := buildLenDelim(0x0A, traceID)
 	spanWithBadEvent = append(spanWithBadEvent, buildLenDelim(0x12, spanID)...)
 	spanWithBadEvent = append(spanWithBadEvent, buildLenDelim(0x2A, []byte("s"))...)
@@ -1402,8 +1402,8 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 
 	// --- unmarshalAnyValue: unmarshalArrayValue error ---
 	badArrayMsg := buildLenDelim(0x0A, []byte{0x0A, 0x01, 'x'}) // valid AV item
-	badArrayMsg = append(badArrayMsg, invalidWireTag...) // invalid field in ArrayValue
-	anyValBadArray := buildLenDelim(0x2A, badArrayMsg) // AnyValue field 5 = ArrayValue
+	badArrayMsg = append(badArrayMsg, invalidWireTag...)        // invalid field in ArrayValue
+	anyValBadArray := buildLenDelim(0x2A, badArrayMsg)          // AnyValue field 5 = ArrayValue
 	kvForBadArray := buildLenDelim(0x0A, []byte("k"))
 	kvForBadArray = append(kvForBadArray, buildLenDelim(0x12, anyValBadArray)...)
 	resourceForBadArray := buildLenDelim(0x0A, kvForBadArray)
@@ -1418,7 +1418,7 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 	innerKV = append(innerKV, buildLenDelim(0x12, []byte{0x0A, 0x01, 'v'})...)
 	badKvListMsg := buildLenDelim(0x0A, innerKV)
 	badKvListMsg = append(badKvListMsg, invalidWireTag...) // invalid field in KvListValue
-	anyValBadKvList := buildLenDelim(0x32, badKvListMsg) // AnyValue field 6 = KvListValue
+	anyValBadKvList := buildLenDelim(0x32, badKvListMsg)   // AnyValue field 6 = KvListValue
 	kvForBadKvList := buildLenDelim(0x0A, []byte("k"))
 	kvForBadKvList = append(kvForBadKvList, buildLenDelim(0x12, anyValBadKvList)...)
 	resourceForBadKvList := buildLenDelim(0x0A, kvForBadKvList)
@@ -1429,7 +1429,7 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 	}
 
 	// --- unmarshalArrayValue: unmarshalAnyValue error ---
-	badInnerAV := []byte{0x0A, 0x0A, 0x01, 0x02} // truncated AnyValue string
+	badInnerAV := []byte{0x0A, 0x0A, 0x01, 0x02}      // truncated AnyValue string
 	arrayWithBadAV := buildLenDelim(0x0A, badInnerAV) // ArrayValue field 1 = bad AV
 	anyValForBadAV := buildLenDelim(0x2A, arrayWithBadAV)
 	kvForBadAV := buildLenDelim(0x0A, []byte("k"))
@@ -1456,26 +1456,26 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 	}
 
 	// --- unmarshalResourceSpans: unmarshalResource error ---
-	badResourceMsg := invalidWireTag // Resource with invalid wire type → unmarshalResource errors
-	rsWithBadResource := buildLenDelim(0x0A, badResourceMsg) // RS field 1 = bad Resource
+	badResourceMsg := invalidWireTag                           // Resource with invalid wire type → unmarshalResource errors
+	rsWithBadResource := buildLenDelim(0x0A, badResourceMsg)   // RS field 1 = bad Resource
 	tdForBadResource := buildLenDelim(0x0A, rsWithBadResource) // TD field 1 = RS
 	if _, err := Unmarshal(tdForBadResource); err == nil {
 		t.Error("unmarshalResourceSpans: expected error from unmarshalResource failing")
 	}
 
 	// --- unmarshalResourceSpans: unmarshalScopeSpans error ---
-	badSSContent := invalidWireTag // ScopeSpans with invalid wire type
+	badSSContent := invalidWireTag                   // ScopeSpans with invalid wire type
 	rsWithBadSS := buildLenDelim(0x12, badSSContent) // RS field 2 = bad SS
-	tdForBadSS := buildLenDelim(0x0A, rsWithBadSS)    // TD field 1 = RS
+	tdForBadSS := buildLenDelim(0x0A, rsWithBadSS)   // TD field 1 = RS
 	if _, err := Unmarshal(tdForBadSS); err == nil {
 		t.Error("unmarshalResourceSpans: expected error from unmarshalScopeSpans failing")
 	}
 
 	// --- unmarshalScopeSpans: unmarshalScope error ---
-	badScopeContent := invalidWireTag // Scope with invalid wire type
+	badScopeContent := invalidWireTag                      // Scope with invalid wire type
 	ssWithBadScope := buildLenDelim(0x0A, badScopeContent) // SS field 1 = bad Scope
-	rsForBadScope := buildLenDelim(0x12, ssWithBadScope)    // RS field 2 = SS
-	tdForBadScope := buildLenDelim(0x0A, rsForBadScope)     // TD field 1 = RS
+	rsForBadScope := buildLenDelim(0x12, ssWithBadScope)   // RS field 2 = SS
+	tdForBadScope := buildLenDelim(0x0A, rsForBadScope)    // TD field 1 = RS
 	if _, err := Unmarshal(tdForBadScope); err == nil {
 		t.Error("unmarshalScopeSpans: expected error from unmarshalScope failing")
 	}
@@ -1484,15 +1484,15 @@ func TestUnmarshalSubMessageErrors(t *testing.T) {
 	badSpanContent := buildLenDelim(0x0A, traceID) // valid TraceID
 	badSpanContent = append(badSpanContent, buildLenDelim(0x12, spanID)...)
 	badSpanContent = append(badSpanContent, invalidWireTag...) // invalid field in span
-	ssWithBadSpan := buildLenDelim(0x12, badSpanContent) // SS field 2 = bad Span
-	rsForBadSpan := buildLenDelim(0x12, ssWithBadSpan)    // RS field 2 = SS
-	tdForBadSpan := buildLenDelim(0x0A, rsForBadSpan)     // TD field 1 = RS
+	ssWithBadSpan := buildLenDelim(0x12, badSpanContent)       // SS field 2 = bad Span
+	rsForBadSpan := buildLenDelim(0x12, ssWithBadSpan)         // RS field 2 = SS
+	tdForBadSpan := buildLenDelim(0x0A, rsForBadSpan)          // TD field 1 = RS
 	if _, err := Unmarshal(tdForBadSpan); err == nil {
 		t.Error("unmarshalScopeSpans: expected error from unmarshalSpan failing")
 	}
 
 	// --- Unmarshal: unmarshalResourceSpans error ---
-	badRSContent := invalidWireTag // RS with invalid wire type → unmarshalResourceSpans errors
+	badRSContent := invalidWireTag                   // RS with invalid wire type → unmarshalResourceSpans errors
 	tdWithBadRS := buildLenDelim(0x0A, badRSContent) // TD field 1 = bad RS
 	if _, err := Unmarshal(tdWithBadRS); err == nil {
 		t.Error("Unmarshal: expected error from unmarshalResourceSpans failing")
@@ -1535,7 +1535,7 @@ func TestUnmarshalReadFieldErrors(t *testing.T) {
 	// --- unmarshalScope: ReadField error ---
 	scopeTruncTag := append([]byte{}, truncTag...)
 	ssTruncScope := buildLenDelim(0x0A, scopeTruncTag) // SS field 1 = Scope with trunc tag
-	rsTruncScope := buildLenDelim(0x12, ssTruncScope)   // RS field 2 = SS
+	rsTruncScope := buildLenDelim(0x12, ssTruncScope)  // RS field 2 = SS
 	tdTruncScope := buildLenDelim(0x0A, rsTruncScope)
 	if _, err := Unmarshal(tdTruncScope); err == nil {
 		t.Error("unmarshalScope: expected ReadField error from truncated tag")
@@ -1665,7 +1665,7 @@ func TestUnmarshalSpecificErrorPaths(t *testing.T) {
 	// This is the Resource content (4 bytes), but Attributes ReadMessage wants 10
 	// RS content = field 1 (Resource) + length = 4 + attrTrunc
 	rsContent85 := buildLenDelim(0x0A, attrTrunc) // field 1 (Resource), len=4, content=attrTrunc
-	tdMsg85 := buildLenDelim(0x0A, rsContent85)    // field 1 (RS), len=len(rsContent85)
+	tdMsg85 := buildLenDelim(0x0A, rsContent85)   // field 1 (RS), len=len(rsContent85)
 	if _, err := Unmarshal(tdMsg85); err == nil {
 		t.Error("unmarshalResource line 85: expected ReadMessage error for truncated Attributes")
 	}
@@ -1675,7 +1675,7 @@ func TestUnmarshalSpecificErrorPaths(t *testing.T) {
 
 	// line 181-183: unmarshalSpan ReadBytes error for TraceID
 	// Need a Span message where TraceID field (field 1) has length > available bytes
-	spanTraceIDTrunc := []byte{0x0A, 0x10, 0x01, 0x02} // field 1, len=16, only 2 bytes
+	spanTraceIDTrunc := []byte{0x0A, 0x10, 0x01, 0x02}   // field 1, len=16, only 2 bytes
 	ssMsgForTID := buildLenDelim(0x12, spanTraceIDTrunc) // SS field 2 = span
 	rsMsgForTID := buildLenDelim(0x12, ssMsgForTID)      // RS field 2 = SS
 	tdForTID := buildLenDelim(0x0A, rsMsgForTID)
@@ -1684,8 +1684,8 @@ func TestUnmarshalSpecificErrorPaths(t *testing.T) {
 	}
 
 	// line 187-189: unmarshalSpan ReadBytes error for SpanID
-	spanSpanIDTrunc := buildLenDelim(0x0A, traceID)                  // valid TraceID (16 bytes)
-	spanSpanIDTrunc = append(spanSpanIDTrunc, []byte{0x12, 0x08, 0x01}...)  // SpanID field 2, len=8, only 1 byte
+	spanSpanIDTrunc := buildLenDelim(0x0A, traceID)                        // valid TraceID (16 bytes)
+	spanSpanIDTrunc = append(spanSpanIDTrunc, []byte{0x12, 0x08, 0x01}...) // SpanID field 2, len=8, only 1 byte
 	ssMsgForSID := buildLenDelim(0x12, spanSpanIDTrunc)
 	rsMsgForSID := buildLenDelim(0x12, ssMsgForSID)
 	tdForSID := buildLenDelim(0x0A, rsMsgForSID)
@@ -1838,7 +1838,7 @@ func TestUnmarshalSpecificErrorPaths(t *testing.T) {
 
 	// line 377-379: unmarshalStatus ReadVarint error for Code
 	// Status Code = field 3, tag = 3<<3|0 = 24 = 0x18
-	statusCodeTrunc := buildLenDelim(0x12, []byte("ok")) // valid message
+	statusCodeTrunc := buildLenDelim(0x12, []byte("ok"))             // valid message
 	statusCodeTrunc = append(statusCodeTrunc, []byte{0x18, 0xFF}...) // field 3, truncated varint
 	spanForStatusCode := buildLenDelim(0x0A, traceID)
 	spanForStatusCode = append(spanForStatusCode, buildLenDelim(0x12, spanID)...)

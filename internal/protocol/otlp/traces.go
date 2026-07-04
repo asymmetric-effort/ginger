@@ -58,7 +58,7 @@ type TracesData struct {
 
 // ResourceSpans groups spans by resource.
 type ResourceSpans struct {
-	Resource  Resource    `json:"resource,omitempty"`
+	Resource   Resource     `json:"resource,omitempty"`
 	ScopeSpans []ScopeSpans `json:"scopeSpans,omitempty"`
 }
 
@@ -75,8 +75,8 @@ type ScopeSpans struct {
 
 // InstrumentationScope identifies the instrumentation library.
 type InstrumentationScope struct {
-	Name    string     `json:"name,omitempty"`
-	Version string     `json:"version,omitempty"`
+	Name       string     `json:"name,omitempty"`
+	Version    string     `json:"version,omitempty"`
 	Attributes Attributes `json:"attributes,omitempty"`
 }
 

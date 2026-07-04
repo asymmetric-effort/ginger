@@ -10,9 +10,9 @@ import (
 
 // Service provides trace query operations.
 type Service struct {
-	reader   storage.TraceReader
+	reader    storage.TraceReader
 	depReader storage.DependencyReader
-	adjuster *AdjusterChain
+	adjuster  *AdjusterChain
 }
 
 // NewService creates a query Service.

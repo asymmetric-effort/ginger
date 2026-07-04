@@ -625,7 +625,7 @@ func TestReadPackedVarintsError(t *testing.T) {
 func TestReadPackedVarintsInnerError(t *testing.T) {
 	// Create a packed field with a truncated varint inside
 	enc := NewEncoder()
-	enc.WriteVarint(2)           // length = 2
+	enc.WriteVarint(2)               // length = 2
 	enc.WriteRaw([]byte{0x80, 0x80}) // two continuation bytes, no terminator (but exactly 2 bytes)
 	dec := NewDecoder(enc.Bytes())
 	enc.Release()
