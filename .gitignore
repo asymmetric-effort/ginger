@@ -66,3 +66,4 @@ docker-compose.override.yml
 
 # Claude skills (installed via skills installer)
 .claude/skills/
+.claude/worktrees/
