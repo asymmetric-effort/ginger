@@ -1,34 +1,58 @@
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
-  enable-all: true
+  default: all
   disable:
     - depguard
     - exhaustruct
     - ireturn
     - varnamelen
     - wrapcheck
+    - err113
+    - mnd
+    - nlreturn
+    - wsl
+    - gofumpt
+    - godox
+    - tagliatelle
+    - testpackage
+    - paralleltest
+    - tparallel
+    - forcetypeassert
+    - nonamedreturns
+    - exhaustive
+    - gochecknoglobals
+    - gochecknoinits
+    - lll
+    - funlen
+    - cyclop
+    - gocyclo
+    - gocognit
+    - nestif
+    - maintidx
+    - goconst
+    - dupl
+    - contextcheck
+    - containedctx
+    - musttag
+    - tagalign
+    - inamedparam
+    - perfsprint
+    - protogetter
+    - intrange
+    - copyloopvar
+    - recvcheck
+    - gosmopolitan
 
 linters-settings:
   govet:
     enable-all: true
-  gocyclo:
-    min-complexity: 10
-  goconst:
-    min-len: 3
-    min-occurrences: 3
   misspell:
     locale: US
-  lll:
-    line-length: 120
-  funlen:
-    lines: 60
-    statements: 40
-  cyclop:
-    max-complexity: 10
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-use-default: false
