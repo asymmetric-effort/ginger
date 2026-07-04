@@ -50,9 +50,7 @@ class Span:
         self.status_code = code
         self.status_message = message
 
-    def add_event(
-        self, name: str, attributes: Optional[dict[str, str]] = None
-    ) -> None:
+    def add_event(self, name: str, attributes: Optional[dict[str, str]] = None) -> None:
         self.events.append(
             {"name": name, "timestamp": time.time_ns(), "attributes": attributes or {}}
         )

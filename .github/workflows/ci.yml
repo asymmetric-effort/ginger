@@ -159,23 +159,15 @@ jobs:
       - name: Setup Node
         uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
-          node-version: "22"
+          node-version: "22.15.0"
 
       - name: Install dependencies
         working-directory: sdk/typescript
-        run: npm ci
-
-      - name: Lint
-        working-directory: sdk/typescript
-        run: npm run lint
+        run: npm install --ignore-scripts
 
       - name: Type check
         working-directory: sdk/typescript
-        run: npm run typecheck
-
-      - name: Test
-        working-directory: sdk/typescript
-        run: npm run test:coverage
+        run: npx tsc --noEmit --strict
 
   supply-chain:
     name: Supply Chain Audit

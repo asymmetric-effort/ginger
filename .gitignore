@@ -19,6 +19,7 @@ __pycache__/
 *$py.class
 *.egg-info/
 dist/
+!internal/ui/dist/
 build/
 .eggs/
 *.egg
