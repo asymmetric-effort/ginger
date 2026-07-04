@@ -1,6 +1,6 @@
 {
   "name": "@asymmetric-effort/ginger",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Ginger TypeScript SDK — zero-dependency OpenTelemetry tracing client with OTLP HTTP export",
   "type": "module",
   "main": "./dist/index.js",
