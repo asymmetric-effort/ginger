@@ -259,26 +259,126 @@ jobs:
       - name: Publish via OIDC
         run: python scripts/pypi-oidc-publish.py
 
-  # ── Deploy GitHub Pages Site ────────────────────────────────────────
-  deploy-site:
-    name: Deploy GitHub Pages
+  # ── Stage 6b: Deploy Site (blue-green) ────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
     needs: pdv
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-      - uses: asymmetric-effort/actions/actions/configure-pages@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-      - uses: asymmetric-effort/actions/actions/upload-pages-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
-          path: site
-      - id: deploy
-        uses: asymmetric-effort/actions/actions/deploy-pages@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+          ref: gh-pages
+          path: gh-pages
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          path: source
+      - name: Deploy to /staging/
+        run: |
+          cd gh-pages
+          rm -rf staging
+          cp -r ../source/site staging
+          echo "ginger.asymmetric-effort.com" > CNAME
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes" || git commit -m "Deploy staging from ${{ github.sha }}"
+          git push origin gh-pages
+
+  pdv-staging:
+    name: PDV Staging
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22.15.0"
+      - name: Install Playwright
+        working-directory: site
+        run: |
+          npm install
+          npx playwright install chromium --with-deps
+      - name: Wait for staging deploy
+        run: |
+          echo "Waiting for staging to be live..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://ginger.asymmetric-effort.com/staging/index.html?cb=$(date +%s)")
+            if [ "$STATUS" = "200" ]; then
+              echo "Staging live after ${i}0s"
+              exit 0
+            fi
+            echo "Attempt $i/30: status=$STATUS"
+            sleep 10
+          done
+          echo "WARNING: staging may still be propagating, continuing anyway"
+      - name: Run PDV against staging
+        working-directory: site
+        env:
+          SITE_URL: https://ginger.asymmetric-effort.com/staging/
+        run: npx playwright test
+
+  promote-production:
+    name: Promote to Production
+    needs: pdv-staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          ref: gh-pages
+          path: gh-pages
+      - name: Promote staging to root
+        run: |
+          cd gh-pages
+          # Preserve CNAME and .nojekyll
+          cp CNAME /tmp/CNAME.bak 2>/dev/null || echo "ginger.asymmetric-effort.com" > /tmp/CNAME.bak
+          cp .nojekyll /tmp/.nojekyll.bak 2>/dev/null || touch /tmp/.nojekyll.bak
+          # Remove old root content (except staging/, .git/)
+          find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name 'staging' ! -name 'CNAME' ! -name '.nojekyll' -exec rm -rf {} +
+          # Copy staging to root
+          cp -r staging/* .
+          # Restore CNAME and .nojekyll
+          cp /tmp/CNAME.bak CNAME
+          cp /tmp/.nojekyll.bak .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes" || git commit -m "Promote staging to production from ${{ github.sha }}"
+          git push origin gh-pages
+
+  pdv-production:
+    name: PDV Production
+    needs: promote-production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22.15.0"
+      - name: Install Playwright
+        working-directory: site
+        run: |
+          npm install
+          npx playwright install chromium --with-deps
+      - name: Wait for production deploy
+        run: |
+          echo "Waiting for production to be live..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://ginger.asymmetric-effort.com/?cb=$(date +%s)")
+            if [ "$STATUS" = "200" ]; then
+              echo "Production live after ${i}0s"
+              exit 0
+            fi
+            echo "Attempt $i/30: status=$STATUS"
+            sleep 10
+          done
+          echo "WARNING: production may still be propagating"
+      - name: Run PDV against production
+        working-directory: site
+        env:
+          SITE_URL: https://ginger.asymmetric-effort.com/
+        run: npx playwright test
 
   # ── Stage 7: GitHub Release (only tags) ─────────────────────────────
   release:
