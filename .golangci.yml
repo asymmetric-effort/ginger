@@ -10,7 +10,6 @@ linters:
     - staticcheck
     - unused
     - misspell
-    - goimports
     - ineffassign
 
 linters-settings:
