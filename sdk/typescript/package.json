@@ -3,15 +3,15 @@
   "version": "0.0.1",
   "description": "Ginger TypeScript SDK - zero-dependency OpenTelemetry tracing client",
   "type": "module",
-  "main": "./dist/tracer.js",
-  "types": "./dist/tracer.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/tracer.js"
+    ".": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/unit/",
+    "test": "node --test tests/unit/test_exporter.js",
     "test:coverage": "node --test --experimental-test-coverage tests/unit/",
     "lint": "tsc --noEmit --strict"
   },
