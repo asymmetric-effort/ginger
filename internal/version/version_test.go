@@ -1,6 +1,7 @@
 package version
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -14,7 +15,7 @@ func TestString(t *testing.T) {
 
 func TestStringContainsVersion(t *testing.T) {
 	v := String()
-	expected := "0.0.1"
+	expected := fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)
 	if !strings.Contains(v, expected) {
 		t.Errorf("expected version to contain %q, got %q", expected, v)
 	}
