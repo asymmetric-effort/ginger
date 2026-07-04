@@ -128,13 +128,17 @@ class OTLPHTTPExporter:
         for ev in events:
             attrs = []
             for k, v in ev.get("attributes", {}).items():
-                attrs.append({
-                    "key": k,
-                    "value": {"stringValue": str(v)},
-                })
-            result.append({
-                "name": ev["name"],
-                "timeUnixNano": str(ev["timestamp"]),
-                "attributes": attrs,
-            })
+                attrs.append(
+                    {
+                        "key": k,
+                        "value": {"stringValue": str(v)},
+                    }
+                )
+            result.append(
+                {
+                    "name": ev["name"],
+                    "timeUnixNano": str(ev["timestamp"]),
+                    "attributes": attrs,
+                }
+            )
         return result
