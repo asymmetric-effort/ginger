@@ -3,6 +3,7 @@
 import json
 import threading
 import urllib.request
+from typing import Any
 
 from ginger.tracer import Span
 
@@ -59,7 +60,7 @@ class OTLPHTTPExporter:
         """Flush any remaining spans."""
         self.flush()
 
-    def _build_payload(self, spans: list[Span]) -> dict:
+    def _build_payload(self, spans: list[Span]) -> dict[str, Any]:
         """Build OTLP JSON trace export request."""
         otlp_spans = []
         for s in spans:
@@ -98,12 +99,12 @@ class OTLPHTTPExporter:
         }
 
     @staticmethod
-    def _build_attributes(attrs: dict) -> list[dict]:
+    def _build_attributes(attrs: dict[str, Any]) -> list[dict[str, Any]]:
         """Convert attributes dict to OTLP attribute list."""
         result = []
         for k, v in attrs.items():
             if isinstance(v, bool):
-                value = {"boolValue": v}
+                value: dict[str, Any] = {"boolValue": v}
             elif isinstance(v, int):
                 value = {"intValue": str(v)}
             elif isinstance(v, float):
@@ -114,15 +115,15 @@ class OTLPHTTPExporter:
         return result
 
     @staticmethod
-    def _build_status(code: int, message: str) -> dict:
+    def _build_status(code: int, message: str) -> dict[str, Any]:
         """Build OTLP status object."""
-        status: dict = {"code": int(code)}
+        status: dict[str, Any] = {"code": int(code)}
         if message:
             status["message"] = message
         return status
 
     @staticmethod
-    def _build_events(events: list[dict]) -> list[dict]:
+    def _build_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert event list to OTLP event format."""
         result = []
         for ev in events:
