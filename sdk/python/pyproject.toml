@@ -7,7 +7,7 @@ name = "asymmetric-effort-ginger"
 version = "0.0.3"
 description = "Ginger Python SDK — zero-dependency OpenTelemetry tracing client with OTLP HTTP export"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.10"
 authors = [
     {name = "Asymmetric Effort, LLC"}
