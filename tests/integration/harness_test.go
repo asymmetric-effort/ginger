@@ -21,7 +21,7 @@ func makeTestTD(traceID [16]byte, service, operation string) otlp.TracesData {
 			ScopeSpans: []otlp.ScopeSpans{{
 				Spans: []otlp.Span{{
 					TraceID: traceID, SpanID: [8]byte{1}, Name: operation,
-					Kind: otlp.SpanKindServer,
+					Kind:              otlp.SpanKindServer,
 					StartTimeUnixNano: uint64(time.Now().UnixNano()),
 					EndTimeUnixNano:   uint64(time.Now().Add(100 * time.Millisecond).UnixNano()),
 				}},
