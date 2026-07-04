@@ -1,11 +1,11 @@
-# ginger
+# asymmetric-effort-ginger
 
 Zero-dependency Python SDK for [Ginger](https://github.com/asymmetric-effort/ginger) — an OpenTelemetry tracing toolkit for Kubernetes with post-quantum cryptography.
 
 ## Installation
 
 ```bash
-pip install ginger
+pip install asymmetric-effort-ginger
 ```
 
 ## Quick Start
