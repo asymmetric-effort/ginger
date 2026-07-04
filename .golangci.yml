@@ -15,7 +15,6 @@ linters:
     - mnd
     - nlreturn
     - wsl
-    - gofumpt
     - godox
     - tagliatelle
     - testpackage
