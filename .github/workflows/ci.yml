@@ -68,6 +68,7 @@ jobs:
           fi
 
       - name: Upload coverage
+        continue-on-error: true
         uses: asymmetric-effort/actions/actions/upload-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           name: coverage
@@ -98,6 +99,7 @@ jobs:
           bin/ginger version
 
       - name: Upload build artifact
+        continue-on-error: true
         uses: asymmetric-effort/actions/actions/upload-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           name: ginger-linux-amd64
@@ -117,6 +119,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Download build artifact
+        continue-on-error: true
         uses: asymmetric-effort/actions/actions/download-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           name: ginger-linux-amd64
