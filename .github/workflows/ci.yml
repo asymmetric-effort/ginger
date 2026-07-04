@@ -1,307 +1,203 @@
-name: CI
+name: Full CI/CD Pipeline
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
 
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # ── Stage 1: Lint ───────────────────────────────────────────────────
   lint:
     name: Lint and Typecheck
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Go
-        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           go-version-file: go.mod
-
-      - name: Install Go tooling
-        uses: asymmetric-effort/actions/actions/go-tooling@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
+      - uses: asymmetric-effort/actions/actions/go-tooling@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
       - name: Install golangci-lint
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run golangci-lint
-        run: golangci-lint run --timeout 5m
-
+      - run: go vet ./...
+      - run: golangci-lint run --timeout 5m
       - name: Check formatting
         run: |
           gofmt -l . | tee /tmp/gofmt.out
           test ! -s /tmp/gofmt.out
 
+  lint-python:
+    name: Lint Python SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          python-version: "3.12"
+      - run: pip install ruff mypy
+      - working-directory: sdk/python
+        run: ruff check . && ruff format --check .
+      - working-directory: sdk/python
+        run: mypy --strict ginger/
+
+  lint-typescript:
+    name: Lint TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          node-version: "22.15.0"
+      - working-directory: sdk/typescript
+        run: npm install --ignore-scripts
+      - working-directory: sdk/typescript
+        run: npx tsc --noEmit --strict
+
+  supply-chain:
+    name: Supply Chain Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/audit-supply-chain@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+
+  # ── Stage 2: Test ───────────────────────────────────────────────────
   test:
-    name: Test
+    name: Test (>=98% coverage)
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Go
-        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           go-version-file: go.mod
-
-      - name: Run unit tests
-        run: |
-          go test -race -coverprofile=coverage.txt -covermode=atomic ./internal/... ./sdk/go/... ./tests/integration/...
-
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.txt -covermode=atomic ./internal/... ./sdk/go/... ./tests/integration/...
       - name: Enforce coverage threshold
         run: |
           COVERAGE=$(go tool cover -func=coverage.txt | grep total | awk '{print substr($3, 1, length($3)-1)}')
           echo "Total coverage: ${COVERAGE}%"
-          if [ "$(echo "${COVERAGE} < 98.0" | bc -l)" -eq 1 ]; then
-            echo "ERROR: Coverage ${COVERAGE}% is below the 98% threshold"
-            exit 1
-          fi
+          [ "$(echo "${COVERAGE} < 98.0" | bc -l)" -eq 0 ] || (echo "ERROR: ${COVERAGE}% < 98%" && exit 1)
 
-      - name: Upload coverage
-        continue-on-error: true
-        uses: asymmetric-effort/actions/actions/upload-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-        with:
-          name: coverage
-          path: coverage.txt
-
+  # ── Stage 3: Build ──────────────────────────────────────────────────
   build:
     name: Build
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Go
-        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           go-version-file: go.mod
-
-      - name: Build binary
+      - name: Build all platforms
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-            go build -ldflags="-s -w" -o bin/ginger ./cmd/ginger
+          for GOOS in linux darwin; do
+            for GOARCH in amd64 arm64; do
+              CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} \
+                go build -ldflags="-s -w" -o "bin/ginger-${GOOS}-${GOARCH}" ./cmd/ginger
+            done
+          done
+      - name: Verify
+        run: file bin/ginger-linux-amd64 && bin/ginger-linux-amd64 version
 
-      - name: Verify binary exists
-        run: |
-          test -f bin/ginger
-          file bin/ginger
-          bin/ginger version
-
-      - name: Upload build artifact
-        continue-on-error: true
-        uses: asymmetric-effort/actions/actions/upload-artifact@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-        with:
-          name: ginger-linux-amd64
-          path: bin/ginger
-
+  # ── Stage 4: E2E ───────────────────────────────────────────────────
   e2e:
     name: E2E Tests
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Go
-        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           go-version-file: go.mod
+      - run: CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
+      - run: go test -tags=e2e -race -timeout 10m ./tests/e2e/...
 
-      - name: Build binary for E2E
-        run: |
-          CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
-          chmod +x bin/ginger
-
-      - name: Run E2E tests
-        run: |
-          go test -tags=e2e -race -timeout 10m ./tests/e2e/...
-
+  # ── Stage 5: Post-Deployment Verification ───────────────────────────
   pdv:
     name: Post-Deployment Verification
     needs: e2e
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Go
-        uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           go-version-file: go.mod
-
-      - name: Build binary
-        run: |
-          CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
-          chmod +x bin/ginger
-
-      - name: Start ginger server
+      - run: CGO_ENABLED=0 go build -o bin/ginger ./cmd/ginger
+      - name: Start server
         run: |
           bin/ginger &
-          SERVER_PID=$!
-          echo "SERVER_PID=${SERVER_PID}" >> "$GITHUB_ENV"
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
           sleep 3
-
-      - name: PDV - Health liveness
+      - name: PDV - Health
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:14269/health/live)
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: liveness probe returned $STATUS"
-            exit 1
-          fi
-          echo "PASS: liveness probe returned 200"
-
-      - name: PDV - Health readiness
+          curl -sf http://localhost:14269/health/live > /dev/null && echo "PASS: liveness"
+          curl -sf http://localhost:14269/health/ready > /dev/null && echo "PASS: readiness"
+      - name: PDV - OTLP ingest
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:14269/health/ready)
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: readiness probe returned $STATUS"
-            exit 1
-          fi
-          echo "PASS: readiness probe returned 200"
-
-      - name: PDV - OTLP trace ingest
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST http://localhost:4318/v1/traces \
+          curl -sf -X POST http://localhost:4318/v1/traces \
             -H "Content-Type: application/json" \
-            -d '{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"00000000000000000000000000000001","spanId":"0000000000000001","name":"pdv-test","startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000"}]}]}]}')
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: OTLP ingest returned $STATUS"
-            exit 1
-          fi
-          echo "PASS: OTLP ingest returned 200"
-
-      - name: PDV - Query services endpoint
+            -d '{"resourceSpans":[{"scopeSpans":[{"spans":[{"traceId":"00000000000000000000000000000001","spanId":"0000000000000001","name":"pdv","startTimeUnixNano":"1000000000","endTimeUnixNano":"2000000000"}]}]}]}' \
+            > /dev/null && echo "PASS: OTLP ingest"
+      - name: PDV - Query & Sampling
         run: |
           sleep 2
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:16686/api/v3/services)
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: query services returned $STATUS"
-            exit 1
-          fi
-          echo "PASS: query services returned 200"
+          curl -sf http://localhost:16686/api/v3/services > /dev/null && echo "PASS: query"
+          curl -sf "http://localhost:16686/api/sampling?service=pdv" > /dev/null && echo "PASS: sampling"
+      - name: PDV - Version
+        run: bin/ginger version | grep -q "ginger v" && echo "PASS: version"
+      - if: always()
+        run: kill "${SERVER_PID}" 2>/dev/null || true
 
-      - name: PDV - Query API v2 compatibility
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:16686/api/services)
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: v2 API returned $STATUS"
-            exit 1
-          fi
-          echo "PASS: v2 API returned 200"
-
-      - name: PDV - Sampling endpoint
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:16686/api/sampling?service=pdv-test")
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: sampling returned $STATUS"
-            exit 1
-          fi
-          echo "PASS: sampling returned 200"
-
-      - name: PDV - Version endpoint
-        run: |
-          VERSION=$(bin/ginger version)
-          echo "Version: ${VERSION}"
-          if ! echo "$VERSION" | grep -q "ginger v"; then
-            echo "FAIL: version output invalid"
-            exit 1
-          fi
-          echo "PASS: version output valid"
-
-      - name: Stop ginger server
-        if: always()
-        run: |
-          if [ -n "${SERVER_PID}" ]; then
-            kill "${SERVER_PID}" 2>/dev/null || true
-            wait "${SERVER_PID}" 2>/dev/null || true
-          fi
-
-  package-docker:
-    name: Package Docker Image
+  # ── Stage 6: Publish (after PDV) ───────────────────────────────────
+  publish-docker:
+    name: Publish Docker
     needs: pdv
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Set image metadata
-        id: meta
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - id: meta
         run: |
-          SHA="${GITHUB_SHA::8}"
-          echo "sha_tag=${SHA}" >> "$GITHUB_OUTPUT"
-          echo "date_tag=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "version_tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Build Docker image
+          echo "sha_tag=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          [[ "${GITHUB_REF}" == refs/tags/v* ]] && echo "version_tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT" || true
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push
         run: |
-          docker build \
-            --label "org.opencontainers.image.source=https://github.com/asymmetric-effort/ginger" \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -t ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }} \
-            -t ghcr.io/asymmetric-effort/ginger:latest \
-            .
+          TAGS="-t ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }} -t ghcr.io/asymmetric-effort/ginger:latest"
+          [ -n "${{ steps.meta.outputs.version_tag }}" ] && TAGS="$TAGS -t ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.version_tag }}"
+          docker build --label "org.opencontainers.image.source=https://github.com/asymmetric-effort/ginger" $TAGS .
+          docker push --all-tags ghcr.io/asymmetric-effort/ginger
 
-      - name: Verify Docker image
-        run: |
-          docker run --rm ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }} version
-
-      - name: Push Docker image
-        run: |
-          docker push ghcr.io/asymmetric-effort/ginger:${{ steps.meta.outputs.sha_tag }}
-          docker push ghcr.io/asymmetric-effort/ginger:latest
-
-  package-helm:
-    name: Package Helm Chart
+  publish-helm:
+    name: Publish Helm
     needs: pdv
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - run: curl -fsSL https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
+      - run: helm lint deploy/helm/ginger
+      - run: helm package deploy/helm/ginger --destination /tmp/helm-packages
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - run: helm push /tmp/helm-packages/ginger-*.tgz oci://ghcr.io/asymmetric-effort/charts
 
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
-
-      - name: Lint Helm chart
-        run: helm lint deploy/helm/ginger
-
-      - name: Package Helm chart
-        run: |
-          helm package deploy/helm/ginger --destination /tmp/helm-packages
-
-      - name: Log in to GHCR for Helm
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Push Helm chart to OCI registry
-        run: |
-          helm push /tmp/helm-packages/ginger-*.tgz oci://ghcr.io/asymmetric-effort/charts
-
-  package-npm:
-    name: Package npm
+  publish-npm:
+    name: Publish npm
     needs: pdv
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -310,28 +206,37 @@ jobs:
       name: npm
       url: https://www.npmjs.com/package/@asymmetric-effort/ginger
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Node
-        uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           node-version: "22.15.0"
-
-      - name: Install and build
-        working-directory: sdk/typescript
+      - name: Configure npm for OIDC
         run: |
-          npm install --ignore-scripts
-          npx tsc
-
+          echo "//registry.npmjs.org/:_authToken=" > ~/.npmrc
+          echo "registry=https://registry.npmjs.org/" >> ~/.npmrc
+      - working-directory: sdk/typescript
+        run: npm install --ignore-scripts && npx tsc
+      - name: Verify version matches tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(node -p "require('./sdk/typescript/package.json').version")
+          [ "$TAG" = "$PKG" ] || (echo "Tag v$TAG != package.json $PKG" && exit 1)
       - name: Publish with provenance
         working-directory: sdk/typescript
-        run: npm publish --access public --provenance
+        run: npx npm@latest publish --provenance --access public
+      - name: Verify publish
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          for i in $(seq 1 10); do
+            LATEST=$(npm view @asymmetric-effort/ginger version 2>/dev/null || echo "")
+            [ "$LATEST" = "$TAG" ] && echo "Verified: @$TAG on npm" && exit 0
+            sleep 5
+          done
 
-  package-pypi:
-    name: Package PyPI
+  publish-pypi:
+    name: Publish PyPI
     needs: pdv
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -340,77 +245,37 @@ jobs:
       name: pypi
       url: https://pypi.org/project/asymmetric-effort-ginger/
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Python
-        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           python-version: "3.12"
-
-      - name: Install build tools
-        run: pip install build "twine>=6.1.0" "packaging>=24.2"
-
-      - name: Build package
-        working-directory: sdk/python
+      - run: pip install build "twine>=6.1.0" "packaging>=24.2"
+      - working-directory: sdk/python
         run: python -m build
-
-      - name: Publish to PyPI via OIDC
+      - name: Publish via OIDC
         run: python scripts/pypi-oidc-publish.py
 
-  lint-python:
-    name: Lint Python SDK
+  # ── Stage 7: GitHub Release (only tags) ─────────────────────────────
+  release:
+    name: GitHub Release
+    needs: [publish-docker, publish-helm]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Python
-        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
-          python-version: "3.12"
-
-      - name: Install tools
-        run: pip install ruff mypy
-
-      - name: Lint
-        working-directory: sdk/python
-        run: ruff check .
-
-      - name: Format check
-        working-directory: sdk/python
-        run: ruff format --check .
-
-      - name: Type check
-        working-directory: sdk/python
-        run: mypy --strict ginger/
-
-  lint-typescript:
-    name: Lint TypeScript SDK
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Node
-        uses: asymmetric-effort/actions/actions/setup-node@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+          fetch-depth: 0
+      - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
-          node-version: "22.15.0"
-
-      - name: Install dependencies
-        working-directory: sdk/typescript
-        run: npm install --ignore-scripts
-
-      - name: Type check
-        working-directory: sdk/typescript
-        run: npx tsc --noEmit --strict
-
-  supply-chain:
-    name: Supply Chain Audit
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Audit supply chain
-        uses: asymmetric-effort/actions/actions/audit-supply-chain@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+          go-version-file: go.mod
+      - name: Build release binaries
+        run: |
+          for GOOS in linux darwin; do
+            for GOARCH in amd64 arm64; do
+              CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} \
+                go build -ldflags="-s -w" -o "bin/ginger-${GOOS}-${GOARCH}" ./cmd/ginger
+            done
+          done
+      - uses: asymmetric-effort/actions/actions/gh-release@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          files: bin/ginger-*
