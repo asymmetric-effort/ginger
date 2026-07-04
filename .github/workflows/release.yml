@@ -121,29 +121,3 @@ jobs:
         working-directory: sdk/typescript
         run: npm publish --access public --provenance
 
-  release-pypi:
-    name: Release PyPI Package
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-
-      - name: Setup Python
-        uses: asymmetric-effort/actions/actions/setup-python@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-        with:
-          python-version: "3.12"
-
-      - name: Install build tools
-        run: pip install build twine
-
-      - name: Build package
-        working-directory: sdk/python
-        run: python -m build
-
-      - name: Publish to PyPI
-        working-directory: sdk/python
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: twine upload dist/*
