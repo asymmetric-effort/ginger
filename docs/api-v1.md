@@ -1,4 +1,8 @@
-# API Reference
+# API Reference (v2 and v3)
+
+> **Note:** This document covers both the current Query API v3 and the legacy
+> Query API v2. New integrations should target v3; v2 endpoints remain available
+> for backward compatibility. For the gRPC ingestion API, see [grpc.md](grpc.md).
 
 ## Query API v3
 
