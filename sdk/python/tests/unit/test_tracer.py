@@ -1,7 +1,8 @@
 """Tests for the Ginger Python SDK tracer."""
 
 import unittest
-from ginger.tracer import Tracer, SpanKind, StatusCode
+
+from ginger.tracer import SpanKind, StatusCode, Tracer
 
 
 class TestTracer(unittest.TestCase):
