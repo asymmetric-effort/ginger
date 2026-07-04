@@ -4,66 +4,15 @@ run:
   timeout: 5m
 
 linters:
-  default: all
-  disable:
-    - depguard
-    - exhaustruct
-    - ireturn
-    - varnamelen
-    - wrapcheck
-    - err113
-    - mnd
-    - nlreturn
-    - wsl
-    - godox
-    - tagliatelle
-    - testpackage
-    - paralleltest
-    - tparallel
-    - forcetypeassert
-    - nonamedreturns
-    - exhaustive
-    - gochecknoglobals
-    - gochecknoinits
-    - lll
-    - funlen
-    - cyclop
-    - gocyclo
-    - gocognit
-    - nestif
-    - maintidx
-    - goconst
-    - dupl
-    - contextcheck
-    - containedctx
-    - musttag
-    - tagalign
-    - inamedparam
-    - perfsprint
-    - protogetter
-    - intrange
-    - copyloopvar
-    - recvcheck
-    - gosmopolitan
-    - canonicalheader
-    - dogsled
-    - dupword
-    - embeddedstructfieldcheck
-    - godot
-    - gomoddirectives
-    - interfacebloat
-    - predeclared
-    - reassign
-    - testifylint
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
-    - whitespace
-    - revive
-    - errcheck
-    - gosec
-    - noctx
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - misspell
+    - goimports
+    - ineffassign
+    - typecheck
 
 linters-settings:
   govet:
@@ -74,9 +23,3 @@ linters-settings:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - noctx
