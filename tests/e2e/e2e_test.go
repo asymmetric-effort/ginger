@@ -44,11 +44,11 @@ func TestFullPipeline(t *testing.T) {
 	defer srv.Close()
 	addr := ln.Addr().String()
 
-	// Send 50 traces
+	// Send 50 traces via protobuf (JSON omits TraceID/SpanID due to json:"-" tags)
 	for i := byte(1); i <= 50; i++ {
 		td := makeTD(i)
-		body, _ := json.Marshal(td)
-		resp, err := http.Post("http://"+addr+"/v1/traces", "application/json", bytes.NewReader(body))
+		body, _ := otlp.Marshal(td)
+		resp, err := http.Post("http://"+addr+"/v1/traces", "application/x-protobuf", bytes.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
