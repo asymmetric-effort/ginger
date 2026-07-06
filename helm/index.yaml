@@ -3,9 +3,9 @@ entries:
   ginger:
   - apiVersion: v2
     appVersion: 0.0.4
-    created: "2026-07-06T14:44:58.187265196Z"
+    created: "2026-07-06T15:43:24.737449594Z"
     description: OpenTelemetry tracing toolkit for Kubernetes with post-quantum cryptography
-    digest: edadefebc174ef73f3f8b42393089995abc67f685443b92a1bc4612f6a963c8f
+    digest: e2d26c4b61c8156a18d18e25c447caa519ee16310250ba5036fb87ff2a9eb930
     maintainers:
     - name: Asymmetric Effort
       url: https://github.com/asymmetric-effort
@@ -14,4 +14,4 @@ entries:
     urls:
     - https://ginger.asymmetric-effort.com/helm/ginger-0.0.4.tgz
     version: 0.0.4
-generated: "2026-07-06T14:44:58.186622781Z"
+generated: "2026-07-06T15:43:24.736914938Z"
