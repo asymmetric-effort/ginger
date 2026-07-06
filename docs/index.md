@@ -21,6 +21,7 @@
 
 - [Multi-Tenancy](multi-tenancy.md) -- Tenant isolation, configuration, and usage examples
 - [Post-Quantum Cryptography](post-quantum-cryptography.md) -- PQC implementation and TLS configuration
+- [Security-First Design](security-first.md) -- CIS alignment, container hardening, supply chain, authentication
 
 ## Operations
 
