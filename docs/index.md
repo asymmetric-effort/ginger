@@ -17,6 +17,11 @@
 - [Python SDK](sdk-python.md) -- Python client library guide
 - [TypeScript SDK](sdk-typescript.md) -- TypeScript client library guide
 
+## Architecture Deep Dives
+
+- [Multi-Tenancy](multi-tenancy.md) -- Tenant isolation, configuration, and usage examples
+- [Post-Quantum Cryptography](post-quantum-cryptography.md) -- PQC implementation and TLS configuration
+
 ## Operations
 
 - [Kubernetes Scaling](kubernetes.md) -- Horizontal scaling patterns
