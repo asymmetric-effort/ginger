@@ -284,7 +284,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && echo "No changes" || git commit -m "Deploy staging from ${{ github.sha }}"
-          git push origin gh-pages
+          git push origin HEAD:gh-pages
 
   pdv-staging:
     name: PDV Staging
@@ -345,7 +345,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && echo "No changes" || git commit -m "Promote staging to production from ${{ github.sha }}"
-          git push origin gh-pages
+          git push origin HEAD:gh-pages
 
   pdv-production:
     name: PDV Production
