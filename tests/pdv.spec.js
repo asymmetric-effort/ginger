@@ -58,3 +58,38 @@ test.describe('Ginger Site PDV', () => {
     expect(body).not.toBeNull();
   });
 });
+
+test.describe('Helm Chart Repo PDV', () => {
+  const HELM_URL = (process.env.SITE_URL || 'https://ginger.asymmetric-effort.com/')
+    .replace(/staging\/$/, '').replace(/\/$/, '') + '/helm';
+
+  test('index.yaml is accessible', async ({ request }) => {
+    const response = await request.get(HELM_URL + '/index.yaml');
+    expect(response.status()).toBe(200);
+  });
+
+  test('index.yaml is valid Helm repo index', async ({ request }) => {
+    const response = await request.get(HELM_URL + '/index.yaml');
+    const body = await response.text();
+    expect(body).toContain('apiVersion: v1');
+    expect(body).toContain('entries:');
+    expect(body).toContain('ginger:');
+  });
+
+  test('index.yaml contains chart with correct URL', async ({ request }) => {
+    const response = await request.get(HELM_URL + '/index.yaml');
+    const body = await response.text();
+    expect(body).toContain('https://ginger.asymmetric-effort.com/helm/ginger-');
+    expect(body).toContain('.tgz');
+  });
+
+  test('chart .tgz is downloadable', async ({ request }) => {
+    const indexResp = await request.get(HELM_URL + '/index.yaml');
+    const body = await indexResp.text();
+    const match = body.match(/https:\/\/ginger\.asymmetric-effort\.com\/helm\/ginger-[0-9.]+\.tgz/);
+    expect(match).not.toBeNull();
+    const tgzResp = await request.get(match[0]);
+    expect(tgzResp.status()).toBe(200);
+    expect(tgzResp.headers()['content-length']).toBeDefined();
+  });
+});
