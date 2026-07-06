@@ -192,11 +192,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-      - run: curl -fsSL https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
-      - run: helm lint deploy/helm/ginger
-      - run: helm package deploy/helm/ginger --destination /tmp/helm-packages
-      - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - run: helm push /tmp/helm-packages/ginger-*.tgz oci://ghcr.io/asymmetric-effort/charts
+        with:
+          path: source
+      - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+        with:
+          ref: gh-pages
+          path: gh-pages
+      - name: Install Helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/HEAD/scripts/get-helm-3 | bash
+      - name: Lint chart
+        run: helm lint source/deploy/helm/ginger
+      - name: Package chart
+        run: helm package source/deploy/helm/ginger --destination /tmp/helm-packages
+      - name: Publish to gh-pages /helm/
+        run: |
+          cd gh-pages
+          mkdir -p helm
+          cp /tmp/helm-packages/ginger-*.tgz helm/
+          helm repo index helm/ --url https://ginger.asymmetric-effort.com/helm
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/
+          git diff --cached --quiet && echo "No changes" || git commit -m "Publish Helm chart from ${{ github.sha }}"
+          git push origin HEAD:gh-pages
 
   publish-npm:
     name: Publish npm
@@ -334,8 +352,8 @@ jobs:
           # Preserve CNAME and .nojekyll
           cp CNAME /tmp/CNAME.bak 2>/dev/null || echo "ginger.asymmetric-effort.com" > /tmp/CNAME.bak
           cp .nojekyll /tmp/.nojekyll.bak 2>/dev/null || touch /tmp/.nojekyll.bak
-          # Remove old root content (except staging/, .git/)
-          find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name 'staging' ! -name 'CNAME' ! -name '.nojekyll' -exec rm -rf {} +
+          # Remove old root content (preserve staging/, helm/, .git/, CNAME, .nojekyll)
+          find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name 'staging' ! -name 'helm' ! -name 'CNAME' ! -name '.nojekyll' -exec rm -rf {} +
           # Copy staging to root
           cp -r staging/* .
           # Restore CNAME and .nojekyll
