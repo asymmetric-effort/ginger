@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
-      - uses: asymmetric-effort/actions/actions/audit-supply-chain@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/audit-supply-chain@e565630fb74add31f164fc517eff80906801e8aa
 
   # ── Stage 2: Test ───────────────────────────────────────────────────
   test:
