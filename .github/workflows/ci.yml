@@ -28,7 +28,7 @@ jobs:
       - uses: asymmetric-effort/actions/actions/setup-go@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
         with:
           go-version-file: go.mod
-      - uses: asymmetric-effort/actions/actions/go-tooling@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/go-tooling@e565630fb74add31f164fc517eff80906801e8aa
       - name: Install golangci-lint
         run: |
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin"
