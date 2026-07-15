@@ -419,6 +419,6 @@ jobs:
                 go build -ldflags="-s -w" -o "bin/ginger-${GOOS}-${GOARCH}" ./cmd/ginger
             done
           done
-      - uses: asymmetric-effort/actions/actions/gh-release@ba6bb9612d80cfb19aec4fe3db1941d17a2d9af1
+      - uses: asymmetric-effort/actions/actions/gh-release@e565630fb74add31f164fc517eff80906801e8aa
         with:
           files: bin/ginger-*
